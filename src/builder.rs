@@ -14,6 +14,7 @@ pub struct Target<'a> {
 }
 
 /// Represents a source file (A single C or Cpp file)
+#[derive(Debug)]
 pub struct Src {
     pub path: String,
     pub name: String,
@@ -51,18 +52,17 @@ impl<'a> Target<'a> {
                 self.add_src(path);
             }
         }
+        log(LogLevel::Info, &format!("  all srcs: {:?}", &self.srcs));
         srcs
     }
 
     /// Add the source file to the srcs field
-    /// param: path of source file
+    /// param: path of source file(.c or .cpp)
     fn add_src(&mut self, path: String) {
         let name = Target::get_src_name(&path);
         let obj_name = self.get_src_obj_name(&name, self.build_config);
-        let dependant_includes=self.get_dependant_includes(&path);
         log(LogLevel::Info, &format!("Added source file: {}", &name));
-        log(LogLevel::Info, &format!("  Source file path: {}", &path));
-        log(LogLevel::Info, &format!("  Object file name: {}", &obj_name));
+        let dependant_includes=self.get_dependant_includes(&path);
         log(LogLevel::Info, &format!("  Dependant includes: {:?}", &dependant_includes));
         self.srcs.push(Src::new(path, name, obj_name, dependant_includes));
     }
@@ -99,14 +99,15 @@ impl<'a> Target<'a> {
             if self.dependant_includes.contains_key(&include_substring) {
                 continue;
             }
-            // Assemble the full path to the dependent file
+            // Concatenate the full path of the dependent file
             let mut include_path = String::new();
             include_path.push_str(&self.target_config.include_dir);
             include_path.push_str("/");
             include_path.push_str(&include_substring);
+            // Recursively finds if the current include also contains child includes
             result.append(&mut self.get_dependant_includes(&include_path));
             result.push(include_path);
-            self.dependant_includes.insert(include_substring, result.clone());
+            self.dependant_includes.insert(include_substring, result.clone()); // have trouble?
         }
         let result = result.into_iter().unique().collect();
         result
