@@ -12,7 +12,7 @@ pub struct Target<'a> {
     pub build_config: &'a BuildConfig,
     pub target_config: &'a TargetConfig,
     dependant_includes: HashMap<String,Vec<String>>,
-    bin_path: String,
+    pub bin_path: String,
 }
 
 /// Represents a source file (A single C or Cpp file)
@@ -106,21 +106,8 @@ impl<'a> Target<'a> {
         cmd.push_str(" -o ");
         cmd.push_str(&self.bin_path);
         if self.target_config.typ == "dll" {
-            #[cfg(target_os = "windows")]
-            cmd.push_str(".dll");
-            #[cfg(target_os = "linux")]
-            cmd.push_str(".so");
             cmd.push_str(" -shared ");
-        } else if self.target_config.typ == "exe" {
-            #[cfg(target_os = "windows")]
-            cmd.push_str(".exe");
-            #[cfg(target_os = "linux")]
-            cmd.push_str("");
-        } else {
-            log(LogLevel::Error, "Invalid target type in target config");
-            log(LogLevel::Error, "  Valid types are: exe, dll");
-            std::process::exit(1);
-        }
+        } 
         for obj in objs {
             cmd.push_str(" ");
             cmd.push_str(obj);
