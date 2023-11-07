@@ -298,3 +298,38 @@ impl Src {
         }
     }
 }
+
+pub fn clean(build_config: &BuildConfig) {
+    if Path::new(&build_config.obj_dir).exists() {
+        fs::remove_dir_all(&build_config.obj_dir).unwrap();
+        log(LogLevel::Info, &format!("Cleaning: {}", &build_config.obj_dir));
+    }
+    if Path::new(&build_config.build_dir).exists() {
+        fs::remove_dir_all(&build_config.build_dir).unwrap();
+        log(LogLevel::Info, &format!("Cleaning: {}", &build_config.build_dir));
+    }
+}
+
+pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>) {
+    for target in targets {
+        let trgt = Target::new(build_config, target);
+        trgt.build();
+    }
+}
+
+pub fn run (build_config: &BuildConfig, exe_target: &TargetConfig) {
+    let trgt = Target::new(build_config, exe_target);
+    if !Path::new(&trgt.bin_path).exists() {
+        return;
+    }
+    log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
+    let mut cmd = Command::new(&trgt.bin_path);
+    let output = cmd.output().expect("failed to execute process");
+    if output.status.success() {
+        log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
+    } else {
+        log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
+        log(LogLevel::Warn, &format!("  Stdout: {}", String::from_utf8_lossy(&output.stdout)));
+        log(LogLevel::Error, &format!("  Stderr: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+}
