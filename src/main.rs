@@ -36,7 +36,7 @@ fn main() {
     }
     for arg in args {
         if arg == "-c" {
-            builder::clean(&build_config);
+            builder::clean(&build_config, &targets);
         }
         if arg == "-r" {
             if exe_target.is_none() {
@@ -55,7 +55,7 @@ fn main() {
         }
 
         if arg == "-rb" {
-            builder::clean(&build_config);
+            builder::clean(&build_config, &targets);
             builder::build(&build_config, &targets);
             builder::run(&build_config,&exe_target.unwrap());
         }
