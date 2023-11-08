@@ -1,3 +1,4 @@
 /target
 config_linux.toml
 /Nomu_Engine
+*.hash

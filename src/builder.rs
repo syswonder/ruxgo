@@ -69,7 +69,7 @@ impl<'a> Target<'a> {
 
     pub fn build(&mut self) {
         let mut to_link : bool = false;
-        let mut link_causer : Vec<&str> = Vec::new();
+        let mut link_causer : Vec<&str> = Vec::new();  // Trace the linked source files
         for src in &self.srcs {
             if src.to_build(&self.path_hash) {
                 hasher::save_hash(&src.path, &mut self.path_hash);
@@ -198,7 +198,7 @@ impl<'a> Target<'a> {
         }
         for include_substring in include_substrings {
             let dep_path = format!("{}/{}", &self.target_config.include_dir, &include_substring);
-            if self.dependant_includes.contains_key(&dep_path) {
+            if self.dependant_includes.contains_key(&dep_path) {  //? seem to have some trouble
                 continue;
             }
             result.append(&mut self.get_dependant_includes(&dep_path));
@@ -307,7 +307,7 @@ impl Src {
     }
 }
 
-pub fn clean(build_config: &BuildConfig) {
+pub fn clean(build_config: &BuildConfig, targets: &Vec<TargetConfig>) {
     if Path::new(&build_config.obj_dir).exists() {
         fs::remove_dir_all(&build_config.obj_dir).unwrap();
         log(LogLevel::Info, &format!("Cleaning: {}", &build_config.obj_dir));
@@ -315,6 +315,18 @@ pub fn clean(build_config: &BuildConfig) {
     if Path::new(&build_config.build_dir).exists() {
         fs::remove_dir_all(&build_config.build_dir).unwrap();
         log(LogLevel::Info, &format!("Cleaning: {}", &build_config.build_dir));
+    }
+    for target in targets {
+        // remove hashes
+        #[cfg(target_os = "windows")]
+        let hash_path = format!("{}.win32.hash", &target.name);
+        #[cfg(target_os = "linux")]
+        let hash_path = format!("{}.linux.hash", &target.name);
+
+        if Path::new(&hash_path).exists() {
+            fs::remove_file(&hash_path).unwrap();
+            log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
+        }
     }
 }
 
