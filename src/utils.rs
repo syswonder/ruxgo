@@ -36,7 +36,7 @@ pub fn log(level: LogLevel, message: &str) {
                 LogLevel::Log
             }
         }
-        Err(_) => LogLevel::Log,
+        Err(_) => LogLevel::Debug,
     };
     if level >= log_level {
         println!("{} {}", level_str, message);
