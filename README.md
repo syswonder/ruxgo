@@ -8,5 +8,7 @@ A Cargo-like build tool for C and C++ applications
 
 * [x] Multithreaded
 * [x] Can generate compile_commnds.json
-* [ ] AR cmd
+* [x] Auto add project libraries to other targets
+* [ ] Support static libraries
+* [ ] Ar cmd
 * [ ] Ld cmd
