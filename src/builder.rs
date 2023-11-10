@@ -109,6 +109,9 @@ impl<'a> Target<'a> {
                     log(LogLevel::Error, &format!("Couldn't create obj dir: {}", why));
                 });
             }
+        } else {
+            log(LogLevel::Log, &format!("Target: {} is up to date", &self.target_config.name));
+            return;
         }
         let progress_bar = Arc::new(Mutex::new(ProgressBar::new(srcs_needed as u64)));
         let num_complete = Arc::new(Mutex::new(0));
@@ -457,6 +460,7 @@ pub fn clean(build_config: &BuildConfig, targets: &Vec<TargetConfig>) {
         if Path::new(&build_config.build_dir).exists() {
             let mut bin_name = String::new();
             bin_name.push_str(&build_config.build_dir);
+            bin_name.push_str("/");
             bin_name.push_str(&target.name);
             #[cfg(target_os = "windows")]
             if target.typ == "exe" {
@@ -475,6 +479,8 @@ pub fn clean(build_config: &BuildConfig, targets: &Vec<TargetConfig>) {
                     log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
                 });
                 log(LogLevel::Info, &format!("Cleaning: {}", &bin_name));
+            } else {
+                log(LogLevel::Log, &format!("Binary file does not exist: {}", &bin_name));
             }
         }
     }
@@ -520,10 +526,11 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
 pub fn run (build_config: &BuildConfig, exe_target: &TargetConfig) {
     let trgt = Target::new(build_config, exe_target);
     if !Path::new(&trgt.bin_path).exists() {
-        return;
+        log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
+        std::process::exit(1);
     }
     log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
-    let mut cmd = Command::new(&trgt.bin_path);
+    let mut cmd = Command::new(&trgt.bin_path);  // consider run by qemu
     let output = cmd.output().expect("failed to execute process");
     if output.status.success() {
         log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
