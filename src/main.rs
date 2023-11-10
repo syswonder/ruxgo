@@ -3,8 +3,6 @@ use std::env;
 use std::path::Path;
 
 fn main() {
-    utils::log(utils::LogLevel::Info, "Hello, Rukoskit!");
-
     #[cfg(target_os = "linux")]
     let (build_config, targets) = utils::parse_config("./config_linux.toml");
     #[cfg(target_os = "windows")]
@@ -89,7 +87,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 utils::log(utils::LogLevel::Log, "Running executable");
-                builder::run(&build_config, &exe_target.unwrap());
+                builder::run(&build_config, &exe_target.unwrap(), &targets);
             }
         }
     }

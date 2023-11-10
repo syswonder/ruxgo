@@ -20,6 +20,7 @@ pub struct Target<'a> {
     pub bin_path: String,
     pub hash_file_path: String,
     path_hash: HashMap<String, String>,
+    pub dependant_libs: Vec<Target<'a>>,
 }
 
 /// Represents a source file (A single C or Cpp file)
@@ -32,10 +33,9 @@ pub struct Src {
 }
 
 impl<'a> Target<'a> {
-    pub fn new(build_config: &'a BuildConfig, target_config: &'a TargetConfig) -> Self {
+    pub fn new(build_config: &'a BuildConfig, target_config: &'a TargetConfig, targets: &'a Vec<TargetConfig>) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
-
         let mut bin_path = String::new();
         bin_path.push_str(&build_config.build_dir);
         bin_path.push_str("/");
@@ -56,9 +56,48 @@ impl<'a> Target<'a> {
         let hash_file_path = format!("{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
         let hash_file_path = format!("{}.linux.hash", &target_config.name);
-
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
-        let mut target = Target {
+        let mut dependant_libs = Vec::new();
+
+        for dependant_lib in &target_config.deps { // find current target's dependant_lib
+            for target in targets {
+                if target.name == *dependant_lib {
+                    dependant_libs.push(Target::new(build_config, target, targets));
+                }
+            }
+        }
+        for dep_lib in &dependant_libs {
+            //? consider add static libs
+            if dep_lib.target_config.typ != "dll" {
+                log(LogLevel::Error, "Can add only dlls as dependant libs");
+                log(LogLevel::Error, &format!("Target: {} is not a dll", dep_lib.target_config.name));
+                log(LogLevel::Error, &format!("Target: {} is a {}", dep_lib.target_config.name, dep_lib.target_config.typ));
+                std::process::exit(1);
+            }
+            else {
+                log(LogLevel::Info, &format!("Adding dependant lib: {}", dep_lib.target_config.name));
+            }
+            if !dep_lib.target_config.name.starts_with("lib") {
+                log(LogLevel::Error, "Dependant lib name must start with lib");
+                log(LogLevel::Error, &format!("Target: {} does not start with lib", dep_lib.target_config.name));
+                std::process::exit(1);
+            } else {
+                log(LogLevel::Debug, &format!("Dependant lib: {} starts with lib", dep_lib.target_config.name));
+            }
+        }
+        if target_config.deps.len() != dependant_libs.len() {
+            log(LogLevel::Error, "Dependant libs not found");
+            log(LogLevel::Error, &format!("Dependant libs: {:?}", target_config.deps));
+            log(LogLevel::Error, &format!("Found libs: {:?}", targets.iter().map(|x| {
+                if x.typ == "dll" {
+                    x.name.clone()
+                } else {
+                    "".to_string()
+                }
+            }).collect::<Vec<String>>().into_iter().filter(|x| x != "").collect::<Vec<String>>()));
+            std::process::exit(1);
+        }
+        let mut target = Target::<'a> {
             srcs,
             build_config,
             target_config,
@@ -66,6 +105,7 @@ impl<'a> Target<'a> {
             bin_path,
             path_hash,
             hash_file_path,
+            dependant_libs,
         };
         target.get_srcs(&target_config.src, target_config);
         target
@@ -120,7 +160,7 @@ impl<'a> Target<'a> {
         self.srcs.par_iter().for_each(|src| {
             let (to_build, _message) = src.to_build(&self.path_hash);
             if to_build {
-                src.build(self.build_config, self.target_config);
+                src.build(self.build_config, self.target_config, &self.dependant_libs);
                 let log_level = std::env::var("RUKOS_LOG_LEVEL").unwrap_or("".to_string());
                 if !(log_level == "Info" || log_level == "Debug"){
                     let mut num_complete = num_complete.lock().unwrap();
@@ -146,12 +186,13 @@ impl<'a> Target<'a> {
             }
             hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
             log(LogLevel::Debug, &format!("Hashes: {:?}", &self.path_hash));
-            self.link();
+            self.link(&self.dependant_libs);
         }
     }
+
     /// Link object files and create an executable or shared library
     /// Todo:Consider using the rust-lld command link library...
-    pub fn link(&self) {
+    pub fn link(&self, dep_targets: &Vec<Target>) {
         let mut objs = Vec::new();
         if !Path::new(&self.build_config.build_dir).exists() {
             fs::create_dir(&self.build_config.build_dir).unwrap();
@@ -174,6 +215,28 @@ impl<'a> Target<'a> {
         cmd.push_str(" ");
         cmd.push_str(&self.target_config.cflags);
         cmd.push_str(" ");
+        // link other dependant libraries
+        for dep_target in dep_targets {
+            cmd.push_str(" -I");
+            cmd.push_str(&dep_target.target_config.include_dir);
+            cmd.push_str(" ");
+
+            cmd.push_str(" -L");
+            cmd.push_str(&dep_target.build_config.build_dir);
+            cmd.push_str(" ");
+
+            let lib_name = dep_target.target_config.name.clone();
+            let lib_name = lib_name.replace("lib", "-l");
+            cmd.push_str(&lib_name);
+            cmd.push_str(" ");
+
+            #[cfg(target_os = "linux")]
+            {   // Specify a dynamic library search path for the program at runtime
+                cmd.push_str(" -Wl,-rpath,");  //modify static? 
+                cmd.push_str(&dep_target.build_config.build_dir);
+                cmd.push_str(" ");
+            }
+        }
         cmd.push_str(&self.target_config.libs);
         log(LogLevel::Info, &format!("Linking target: {}", &self.target_config.name));
         log(LogLevel::Info, &format!("  Command: {}", &cmd));
@@ -394,7 +457,7 @@ impl Src {
     }
     
     /// Build source files
-    fn build(&self, build_config: &BuildConfig, target_config: &TargetConfig) {
+    fn build(&self, build_config: &BuildConfig, target_config: &TargetConfig, dependant_libs: &Vec<Target>) {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
         cmd.push_str(" -c ");
@@ -404,6 +467,12 @@ impl Src {
         cmd.push_str(" -I");
         cmd.push_str(&target_config.include_dir);
         cmd.push_str(" ");
+        //? consider some includes in other depandant_libs?
+        for dependant_lib in dependant_libs {
+            cmd.push_str("-I");
+            cmd.push_str(dependant_lib.target_config.include_dir.as_str());
+            cmd.push_str(" ");
+        }
         cmd.push_str(&target_config.cflags);
 
         if target_config.typ == "dll" {
@@ -502,7 +571,7 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
         });
     }
     for target in targets {
-        let mut trgt = Target::new(build_config, target);
+        let mut trgt = Target::new(build_config, target, &targets);
         trgt.build(gen_cc);
     }
     if gen_cc {
@@ -523,14 +592,14 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
     log(LogLevel::Info, "Build complete");
 }
 
-pub fn run (build_config: &BuildConfig, exe_target: &TargetConfig) {
-    let trgt = Target::new(build_config, exe_target);
+pub fn run (build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>) {
+    let trgt = Target::new(build_config, exe_target, &targets);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
     }
     log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
-    let mut cmd = Command::new(&trgt.bin_path);  // consider run by qemu
+    let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
     let output = cmd.output().expect("failed to execute process");
     if output.status.success() {
         log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
