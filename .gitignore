@@ -2,3 +2,5 @@
 config_linux.toml
 /Nomu_Engine
 *.hash
+.cache/
+compile_commands.json
