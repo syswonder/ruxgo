@@ -48,6 +48,11 @@ fn main() {
         }
         valid_arg = true;
     }
+    if args.contains(&"--clean-packages".to_string()) {
+        utils::log(utils::LogLevel::Log, "Cleaning packages...");
+        builder::clean_packages(&packages);
+        valid_arg = true;
+    }
     if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         print_help();
         std::process::exit(0);
@@ -76,12 +81,12 @@ fn main() {
                 }
             }
             if arg.contains('c') {
-                utils::log(utils::LogLevel::Log, "Cleaning build directory");
+                utils::log(utils::LogLevel::Log, "Cleaning...");
                 builder::clean(&targets);
                 valid_arg = true;
             }
             if arg.contains('b') {
-                utils::log(utils::LogLevel::Log, "Building project");
+                utils::log(utils::LogLevel::Log, "Building project...");
                 builder::build(&build_config, &targets, gen_cc, &packages);
                 valid_arg = true;
             }
@@ -91,7 +96,7 @@ fn main() {
                     utils::log(utils::LogLevel::Error, "No executable target specified");
                     std::process::exit(1);
                 }
-                utils::log(utils::LogLevel::Log, "Running executable");
+                utils::log(utils::LogLevel::Log, "Running executable...");
                 builder::run(&build_config, &exe_target.unwrap(), &targets, &packages);
             }
         }
@@ -104,16 +109,17 @@ fn main() {
 }
 
 fn print_help() {
-    utils::log(utils::LogLevel::Log, "Usage: $ rukoskit [options]");
+    utils::log(utils::LogLevel::Log, "Usage: $ builder_cpp [options]");
     utils::log(utils::LogLevel::Log, "Options:");
-    utils::log(utils::LogLevel::Log, "\t-c\tClean the build directory");
-    utils::log(utils::LogLevel::Log, "\t-r\tRun the executable");
-    utils::log(utils::LogLevel::Log, "\t-b\tBuild the project");
-    utils::log(utils::LogLevel::Log, "\t-h\tShow this help message");
-    utils::log(utils::LogLevel::Log, "\t--help\t\tShow this help message");
-    utils::log(utils::LogLevel::Log, "\t--gen-cc\tGenerate compile_commands.json");
+    utils::log(utils::LogLevel::Log, "\t-c\t\tClean the build directory");
+    utils::log(utils::LogLevel::Log, "\t-r\t\tRun the executable");
+    utils::log(utils::LogLevel::Log, "\t-b\t\tBuild the project");
+    utils::log(utils::LogLevel::Log, "\t-h\t\tShow this help message");
+    utils::log(utils::LogLevel::Log, "");
+    utils::log(utils::LogLevel::Log, "\t--help\t\t\tShow this help message");
+    utils::log(utils::LogLevel::Log, "\t--gen-cc\t\tGenerate compile_commands.json");
+    utils::log(utils::LogLevel::Log, "\t--clean-packages\tClean the package binaries");
     utils::log(utils::LogLevel::Log, "Environment variables:");
     utils::log(utils::LogLevel::Log, "\tRUKOSKIT_LOG_LEVEL");
-    utils::log(utils::LogLevel::Log, "\t\tSet the log level");
     utils::log(utils::LogLevel::Log, "\t\tValid values are: Debug, Log, Info, Warn, Error");
 }
