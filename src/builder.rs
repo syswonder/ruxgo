@@ -57,8 +57,8 @@ impl<'a> Target<'a> {
         #[cfg(target_os = "linux")]
         let hash_file_path = format!("{}.linux.hash", &target_config.name);
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
-        let mut dependant_libs = Vec::new();
 
+        let mut dependant_libs = Vec::new();
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
             for target in targets {
                 if target.name == *dependant_lib {
@@ -185,7 +185,6 @@ impl<'a> Target<'a> {
                 }
             }
             hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
-            log(LogLevel::Debug, &format!("Hashes: {:?}", &self.path_hash));
             self.link(&self.dependant_libs);
         }
     }
