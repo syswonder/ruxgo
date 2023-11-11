@@ -61,9 +61,9 @@ impl<'a> Target<'a> {
             bin_path.push_str(".so");
         }
         #[cfg(target_os = "windows")]
-        let hash_file_path = format!(".bld_cpp/{}.win32.hash", &target_config.name);
+        let hash_file_path = format!("rukos_bld/{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
-        let hash_file_path = format!(".bld_cpp/{}.linux.hash", &target_config.name);
+        let hash_file_path = format!("rukos_bld/{}.linux.hash", &target_config.name);
 
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
@@ -545,10 +545,11 @@ impl Src {
             cmd.push_str(dependant_lib.target_config.include_dir.as_str());
             cmd.push_str(" ");
         }
+        //? consider some includes in other packages?
         if build_config.packages.len() > 0 {
             for package in &build_config.packages {
                 cmd.push_str("-I");
-                cmd.push_str(&format!(".bld_cpp/includes/{} ", &package.split_whitespace().into_iter().next().unwrap().split('/').last().unwrap().replace(",", "")));
+                cmd.push_str(&format!("rukos_bld/includes/{} ", &package.split_whitespace().into_iter().next().unwrap().split('/').last().unwrap().replace(",", "")));
                 cmd.push_str(" ");
             }
         }
@@ -595,9 +596,9 @@ pub fn clean(targets: &Vec<TargetConfig>) {
     for target in targets {
         // remove hashes
         #[cfg(target_os = "windows")]
-        let hash_path = format!(".bld_cpp/{}.win32.hash", &target.name);
+        let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
         #[cfg(target_os = "linux")]
-        let hash_path = format!(".bld_cpp/{}.linux.hash", &target.name);
+        let hash_path = format!("rukos_bld/{}.linux.hash", &target.name);
 
         if Path::new(&hash_path).exists() {
             fs::remove_file(&hash_path).unwrap_or_else(|why| {

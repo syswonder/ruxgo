@@ -191,6 +191,40 @@ impl Package {
         }
     }
 
+    pub fn update(&self) {
+        let mut cmd = String::from("cd");
+        cmd.push_str(&format!(" ./rukos_bld/sources/{}", self.name));
+        log(LogLevel::Log, &format!("Updating package: {}", self.name));
+        cmd.push_str(" &&");
+        cmd.push_str(" git");
+        cmd.push_str(" fetch");
+        cmd.push_str(" origin");
+        cmd.push_str(" &&");
+        cmd.push_str(" git");
+        cmd.push_str(" pull");
+        cmd.push_str(" origin");
+        cmd.push_str(&format!(" {}", self.branch));
+        cmd.push_str(" &&");
+        cmd.push_str(" git");
+        cmd.push_str(" checkout");
+        cmd.push_str(&format!(" {}", self.branch));
+        let com = Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .output()
+            .unwrap_or_else(|e| {
+                log(LogLevel::Error, &format!("Failed to update package: {}", e));
+                std::process::exit(1);
+            });
+        if com.status.success() {
+            log(LogLevel::Log, &format!("Successfully updated package: {}", self.name));
+            log(LogLevel::Log, &format!("Output: {}", String::from_utf8_lossy(&com.stdout)).replace("\r", "").replace("\n", ""));
+        } else {
+            log(LogLevel::Error, &format!("Failed to update package: {}", String::from_utf8_lossy(&com.stderr)));
+            std::process::exit(1);
+        }
+    }
+
     pub fn parse_packages(path: &str) -> Vec<Package> {
         let mut packages: Vec<Package> = Vec::new();
         //initialize fields
@@ -216,7 +250,7 @@ impl Package {
             branch = deets[1].to_string();
             name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
             
-            let source_dir = format!("./.bld_cpp/sources/{}/", name);
+            let source_dir = format!("./rukos_bld/sources/{}/", name);
             if !Path::new(&source_dir).exists() {
                 Command::new("mkdir")
                     .arg("-p")
@@ -244,9 +278,9 @@ impl Package {
                 }
             }
             #[cfg(target_os = "linux")]
-            let pkg_toml = format!("{}/config_linux.toml", source_dir);
+            let pkg_toml = format!("{}/config_linux.toml", source_dir).replace("//", "/");
             #[cfg(target_os = "windows")]
-            let pkg_toml = format!("{}/config_win32.toml", source_dir);
+            let pkg_toml = format!("{}/config_win32.toml", source_dir).replace("//", "/");
 
             let (pkg_bld_config_toml, pkg_targets_toml) = parse_config(&pkg_toml);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
@@ -278,7 +312,7 @@ impl Package {
                 }
                 tgt.src = format!("{}/{}", source_dir, tgt.src).replace("\\", "/").replace("/./", "/").replace("//", "/");
                 let old_inc_dir = tgt.include_dir.clone();
-                tgt.include_dir = format!("./.bld_cpp/includes/{}", name).replace("\\", "/").replace("/./", "/").replace("//", "/");
+                tgt.include_dir = format!("./rukos_bld/includes/{}", name).replace("\\", "/").replace("/./", "/").replace("//", "/");
                 if !Path::new(&tgt.include_dir).exists() {
                     let cmd = Command::new("mkdir")
                         .arg("-p")
