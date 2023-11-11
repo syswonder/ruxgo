@@ -11,7 +11,7 @@ fn main() {
     let packages = utils::Package::parse_packages("./config_linux.toml");
     #[cfg(target_os = "windows")]
     let packages = utils::Package::parse_packages("./config_win32.toml");
-    utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
+    //utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
 
     let mut num_exe = 0;
     let mut exe_target : Option<&utils::TargetConfig> = None;
@@ -59,6 +59,17 @@ fn main() {
             package.update();
         }
         valid_arg = true;
+    }
+    if args.contains(&"--restore-packages".to_string()) {
+        utils::log(utils::LogLevel::Log, "Restoring packages...");
+        for package in &packages {
+            package.restore();
+        }
+        valid_arg = true;
+    }
+    if args.contains(&"--version".to_string()) {
+        utils::log(utils::LogLevel::Log, "rukoskit v0.3.1");
+        std::process::exit(0);
     }
     if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         print_help();
@@ -116,7 +127,7 @@ fn main() {
 }
 
 fn print_help() {
-    utils::log(utils::LogLevel::Log, "Usage: $ builder_cpp [options]");
+    utils::log(utils::LogLevel::Log, "Usage: $ rukoskit [options]");
     utils::log(utils::LogLevel::Log, "Options:");
     utils::log(utils::LogLevel::Log, "\t-c\t\tClean the build directory");
     utils::log(utils::LogLevel::Log, "\t-r\t\tRun the executable");
@@ -127,6 +138,8 @@ fn print_help() {
     utils::log(utils::LogLevel::Log, "\t--gen-cc\t\tGenerate compile_commands.json");
     utils::log(utils::LogLevel::Log, "\t--clean-packages\tClean the package binaries");
     utils::log(utils::LogLevel::Log, "\t--update-packages\tUpdate the packages");
+    utils::log(utils::LogLevel::Log, "\t--restore-packages\tRestore the packages");
+    utils::log(utils::LogLevel::Log, "\t--version\t\tShow the version");
     utils::log(utils::LogLevel::Log, "Environment variables:");
     utils::log(utils::LogLevel::Log, "\tRUKOSKIT_LOG_LEVEL");
     utils::log(utils::LogLevel::Log, "\t\tValid values are: Debug, Log, Info, Warn, Error");
