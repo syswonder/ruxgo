@@ -18,26 +18,26 @@ static OBJ_DIR: &str  = "rukos_bld/obj_win32";
 static OBJ_DIR: &str  = "rukos_bld/obj_linux";
 
 /// Represents a target
-pub struct Target<'a> {
-    pub srcs: Vec<Src>,
-    pub build_config: &'a BuildConfig,
-    pub target_config: &'a TargetConfig,
-    dependant_includes: HashMap<String,Vec<String>>,
-    pub bin_path: String,
-    pub hash_file_path: String,
+struct Target<'a> {
+    srcs: Vec<Src>,
+    build_config: &'a BuildConfig,
+    target_config: &'a TargetConfig,
+    dependant_includes: HashMap<String, Vec<String>>,
+    bin_path: String,
+    hash_file_path: String,
     path_hash: HashMap<String, String>,
-    pub dependant_libs: Vec<Target<'a>>,
-    pub packages: &'a Vec<Package>,
+    dependant_libs: Vec<Target<'a>>,
+    packages: &'a Vec<Package>,
 }
 
 /// Represents a source file (A single C or Cpp file)
 #[derive(Debug)]
-pub struct Src {
-    pub path: String,
-    pub name: String,
-    pub obj_name: String,
-    pub bin_path: String,
-    pub dependant_includes: Vec<String>,
+struct Src {
+    path: String,
+    name: String,
+    obj_name: String,
+    bin_path: String,
+    dependant_includes: Vec<String>,
 }
 
 impl<'a> Target<'a> {
@@ -307,9 +307,8 @@ impl<'a> Target<'a> {
         }
     }
 
-    //-----------------
     //  "command": "c++ -c -o ./obj_bin/app.o -I./Engine/src/include -g -Wall -Wunused -I/usr/include/freetype2 -I/usr/include/libpng16 -I/usr/include/harfbuzz -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-4 -pthread -std=c++17 -fPIC ./Engine/src/core/app.cpp",
-    /// Generate command line instructions, since each source file may have different commands
+    /// Generates the compile_commands.json file, since each source file may have different commands
     fn gen_cc(&self, src: &Src) -> String {
         let mut cc = String::new();
         cc.push_str("{\n");  // Json start
@@ -420,7 +419,6 @@ impl<'a> Target<'a> {
     }
 
     /// Add a source file to the target's srcs field
-    /// param: path of source file(.c or .cpp)
     fn add_src(&mut self, path: String) {
         let name = Target::get_src_name(&path);
         let obj_name = self.get_src_obj_name(&name);
@@ -431,7 +429,7 @@ impl<'a> Target<'a> {
         self.srcs.push(Src::new(path, name, obj_name, bin_path, dependant_includes));
     }
 
-    // Returns the file name without the extension from the path
+    // Return the file name without the extension from the path
     fn get_src_name(path: &str) -> String {
         let path_buf = PathBuf::from(path);
         let file_name = path_buf.file_name().unwrap().to_str().unwrap();
@@ -439,7 +437,7 @@ impl<'a> Target<'a> {
         name.to_string()
     }
 
-    /// Get the object file name corresponding to the source file.
+    /// Return the object file name corresponding to the source file
     fn get_src_obj_name(&self, src_name: &str) -> String {
         let mut obj_name = String::new();
         obj_name.push_str(OBJ_DIR);
@@ -532,7 +530,7 @@ impl Src {
         result
     }
     
-    /// Build source files
+    /// Build the source files
     fn build(&self, build_config: &BuildConfig, target_config: &TargetConfig, dependant_libs: &Vec<Target>) {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
@@ -590,6 +588,7 @@ impl Src {
     }
 }
 
+/// Cleans the local targets
 pub fn clean(targets: &Vec<TargetConfig>) {
     if Path::new("rukos_bld").exists() {
         fs::remove_dir_all("rukos_bld").unwrap_or_else(|why| {  //? have some differences
@@ -644,6 +643,7 @@ pub fn clean(targets: &Vec<TargetConfig>) {
     }
 }
 
+/// Cleans the downloaded packages
 pub fn clean_packages(packages: &Vec<Package>) {
     for pack in packages {
         for target in &pack.target_configs {
@@ -672,6 +672,7 @@ pub fn clean_packages(packages: &Vec<Package>) {
     }
 }
 
+/// Builds all targets
 pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bool, packages: &Vec<Package>) {
     if !Path::new("rukos_bld").exists() {
         fs::create_dir("rukos_bld").unwrap_or_else(|why| {
@@ -715,6 +716,7 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
     log(LogLevel::Info, "Build complete");
 }
 
+/// Runs the exe target
 pub fn run(build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>, packages: &Vec<Package>) {
     let trgt = Target::new(build_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {
