@@ -10,7 +10,7 @@ use sha1::{Sha1, Digest};
 /// Hashes a file and returns the hash as a string.
 fn hash_file(path: &str) -> String {
     let mut file = File::open(path).unwrap();
-    const CHUNK_SIZE: usize = 1024 * 1024;  // 1MB
+    const CHUNK_SIZE: usize = 1024 * 1024;  // 1MB: read files in chunks 
 
     let mut limit = file.metadata().unwrap_or_else(|why| {
         log(LogLevel::Error, &format!("Failed to get length for file: {}", path));
