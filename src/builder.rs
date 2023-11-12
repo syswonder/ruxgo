@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::fs;
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use crate::hasher;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -332,6 +332,10 @@ impl<'a> Target<'a> {
         cc.push_str(" -I");
         cc.push_str(&self.target_config.include_dir);
 
+        for lib in &self.dependant_libs {
+            cc.push_str(" -I");
+            cc.push_str(&lib.target_config.include_dir);
+        }
         for pack in self.packages {
             for tgtg in &pack.target_configs {
                 cc.push_str(" -I");
@@ -731,21 +735,12 @@ pub fn run(build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<
     }
     log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
     let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
-    let output = cmd.output().expect("failed to execute process");
-    if output.status.success() {
+    // sets the stdout and stderr of the cmd to be inherited by the parent process.
+    let output = cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit()).output();
+    if !output.is_err() {
         log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.len() > 0 {
-            log(LogLevel::Info, &format!("  Stdout: {}", stdout));
-        }
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.len() > 0 {
-            log(LogLevel::Info, &format!("  Stderr: {}", stderr));
-        }
     } else {
         log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
-        log(LogLevel::Warn, &format!("  Stdout: {}", String::from_utf8_lossy(&output.stdout)));
-        log(LogLevel::Error, &format!("  Stderr: {}", String::from_utf8_lossy(&output.stderr)));
         std::process::exit(1);
     }
 }
