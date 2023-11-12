@@ -1,25 +1,47 @@
+//! This module contains functions for hashing files and checking if they have changed.
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
+use std::cmp::min;
 use std::path::Path;
 use crate::utils::{log, LogLevel};
 use std::collections::HashMap;
-use md5;
+use sha1::{Sha1, Digest};
 
-/// Compute the hash of a vector of bytes
-fn hash_u8(v: &[u8]) -> String {
-    let digest = md5::compute(v);
-    return format!("{:x}", digest);
-}
-
-/// Compute the MD5 hash of a file specified by path
+/// Hashes a file and returns the hash as a string.
 fn hash_file(path: &str) -> String {
     let mut file = File::open(path).unwrap();
-    let mut contents = Vec::new();
-    file.read_to_end(&mut contents).unwrap();
-    return hash_u8(&contents);
+    const CHUNK_SIZE: usize = 1024 * 1024;  // 1MB
+
+    let mut limit = file.metadata().unwrap_or_else(|why| {
+        log(LogLevel::Error, &format!("Failed to get length for file: {}", path));
+        log(LogLevel::Error, &format!("Error: {}", why));
+        std::process::exit(1);
+    }).len();
+    let mut buffer = [0; CHUNK_SIZE];
+    let mut hasher = Sha1::new();
+
+    while limit > 0 {
+        let read_size = min(limit as usize, CHUNK_SIZE);
+        let read = file.read(&mut buffer[0..read_size]).unwrap();
+        if read == 0 {
+            break;
+        }
+        limit -= read as u64;
+        hasher.update(&buffer[0..read]);
+    }
+    let result = hasher.finalize();
+    let mut hash = String::new();
+    for byte in result {
+        hash.push_str(&format!("{:02x}", byte));
+    }
+    return hash;
 }
 
-/// Get the hash value of a file specified by path from the path_hash HashMap
+/// Returns the hash of a file if it exists in the path_hash.
+/// Otherwise returns None.
+/// # Arguments
+/// * `path` - The path of the file to get the hash of.
+/// * `path_hash` - The hashmap of paths and hashes.
 pub fn get_hash(path: &str, path_hash: &HashMap<String, String>) -> Option<String> {
     if path_hash.contains_key(path) {
         return Some(path_hash.get(path).unwrap().to_string());
@@ -27,14 +49,16 @@ pub fn get_hash(path: &str, path_hash: &HashMap<String, String>) -> Option<Strin
     return None;
 }
 
-/// Load the file paths and their corresponding hash values from a file specified by path
+/// Loads the hashes from a file and returns them as a hashmap.
+/// # Arguments
+/// * `path` - The path of the file to load the hashes from.
 pub fn load_hashes_from_file(path: &str) -> HashMap<String, String> {
     let mut path_hash: HashMap<String, String> = HashMap::new();
     let path = Path::new(path);
     if !path.exists() {
         return path_hash;
     }
-    let mut file = OpenOptions::new().read(true).open(path).unwrap(); 
+    let mut file = OpenOptions::new().read(true).open(path).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     for line in contents.lines() {
@@ -49,16 +73,25 @@ pub fn load_hashes_from_file(path: &str) -> HashMap<String, String> {
     return path_hash;
 }
 
-/// Save the file paths and their corresponding hash values to a file specified by path
+/// Saves the hashes to a file.
+/// # Arguments
+/// * `path` - The path of the file to save the hashes to.
+/// * `path_hash` - The hashmap of paths and hashes.
 pub fn save_hashes_to_file(path: &str, path_hash: &HashMap<String, String>) {
-    let mut file = OpenOptions::new().write(true).create(true).open(path).unwrap();
+    let mut file = OpenOptions::new().write(true).create(true).open(path).unwrap_or_else(|_| {
+        log(LogLevel::Error, &format!("Failed to open file: {}", path));
+        std::process::exit(1);
+    });
     for (path, hash) in path_hash {
         let line = format!("{} {}\n", path, hash);
         file.write(line.as_bytes()).unwrap();
     }
 }
 
-/// Check if a file specified by path has changed
+/// Checks if a file has changed.
+/// # Arguments
+/// * `path` - The path of the file to check.
+/// * `path_hash` - The hashmap of paths and hashes.
 pub fn is_file_changed(path: &str, path_hash: &HashMap<String, String>) -> bool {
     let hash = get_hash(path, path_hash);
     if hash.is_none() {
@@ -70,7 +103,10 @@ pub fn is_file_changed(path: &str, path_hash: &HashMap<String, String>) -> bool 
     result
 }
 
-/// Compute the hash of a file specified by path and update its value in the path_hash HashMap
+/// Saves the hash of a file to the hashmap.
+/// # Arguments
+/// * `path` - The path of the file to save the hash of.
+/// * `path_hash` - The hashmap of paths and hashes.
 pub fn save_hash(path: &str, path_hash: &mut HashMap<String, String>) {
     let new_hash = hash_file(path);
     let hash = get_hash(path, path_hash);
