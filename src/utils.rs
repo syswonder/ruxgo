@@ -66,7 +66,33 @@ pub struct TargetConfig {
     pub deps: Vec<String>,
 }
 
-pub fn parse_config(path: &str) -> (BuildConfig, Vec<TargetConfig>) {
+impl TargetConfig {
+    pub fn get_src_names(path: &str) -> Vec<String> {
+        let mut src_names = Vec::new();
+        let src_path = Path::new(&path);
+        let src_entries = std::fs::read_dir(src_path).unwrap_or_else(|_| {
+            log(LogLevel::Error, &format!("Could not read src dir: {}", path));
+            std::process::exit(1);
+        });
+        for entry in src_entries {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_file() {
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                if file_name.ends_with(".cpp") || file_name.ends_with(".c") {
+                    src_names.push(file_name.to_string());
+                }
+            } else if path.is_dir() {
+                let dir_name = path.to_str().unwrap().replace("\\", "/");
+                let mut dir_src_names = TargetConfig::get_src_names(&dir_name);
+                src_names.append(&mut dir_src_names);
+            }
+        }
+        src_names
+    }
+}
+
+pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<TargetConfig>) {
     // open toml file and parse it into a string
     let mut file = File::open(path).unwrap_or_else(|_| {
         log(LogLevel::Error, &format!("Could not open config file: {}", path));
@@ -126,8 +152,7 @@ pub fn parse_config(path: &str) -> (BuildConfig, Vec<TargetConfig>) {
             .unwrap_or_else(|| {
                 log(LogLevel::Error, "Deps is not an array");
                 std::process::exit(1);
-            })
-        ;
+            });
         for dep in deps_toml {
             deps.push(dep.as_str().unwrap_or_else(|| {
                 log(LogLevel::Error, "Deps are a vec of strings");
@@ -168,6 +193,41 @@ pub fn parse_config(path: &str) -> (BuildConfig, Vec<TargetConfig>) {
         }
         tgt.push(target_config);
     }
+
+    // Sort and remove duplicate targets
+    if tgt.len() == 0 {
+        log(LogLevel::Error, "No targets found");
+        std::process::exit(1);
+    }
+    let original_len = tgt.len();
+    tgt.sort_by_key(|t| t.name.clone());
+    tgt.dedup_by_key(|t| t.name.clone());
+    let dedup_len = tgt.len();
+    if original_len != dedup_len {
+        log(LogLevel::Error, "Duplicate targets found");
+        log(LogLevel::Error, "Target names must be unique");
+        std::process::exit(1);
+    }
+    // check duplicate srcs in target(no remove)
+    if check_dup_src {
+        for target in &tgt {
+            let mut src_file_names = TargetConfig::get_src_names(&target.src);
+            src_file_names.sort();
+            if src_file_names.len() == 0 {
+                log(LogLevel::Error, &format!("No source files found for target: {}", target.name));
+                std::process::exit(1);
+            }
+            for i in 0..src_file_names.len() - 1 {
+                if src_file_names[i] == src_file_names[i + 1] {
+                    log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
+                    log(LogLevel::Error, &format!("Source files must be unique"));
+                    log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     (build_config, tgt)
 }
 
@@ -257,7 +317,7 @@ impl Package {
 
         // parse the root toml file
         // packages = ["Dr-42/Nomu_Engine, master"]
-        let (build_config_toml, _) = parse_config(path);
+        let (build_config_toml, _) = parse_config(path, false);
         for package in build_config_toml.packages {
             let deets = package.split_whitespace().collect::<Vec<&str>>();
             if deets.len() != 2 {
@@ -300,7 +360,7 @@ impl Package {
             #[cfg(target_os = "windows")]
             let pkg_toml = format!("{}/config_win32.toml", source_dir).replace("//", "/");
 
-            let (pkg_bld_config_toml, pkg_targets_toml) = parse_config(&pkg_toml);
+            let (pkg_bld_config_toml, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
             if pkg_bld_config_toml.packages.len() > 0 {
@@ -361,6 +421,9 @@ impl Package {
         }
 
         packages.push(Package::new(name, repo, branch, build_config, target_configs));
+        // Sort and remove duplicate packages
+        packages.sort_by_key(|a| a.name.clone());
+        packages.dedup_by_key(|a| a.name.clone());
         packages
     }
 }
