@@ -14,12 +14,10 @@ fn main() {
         utils::log(utils::LogLevel::Log, &format!("rukoskit v{}", VERSION));
         std::process::exit(0);
     }
-
     if args.contains(&"--help".to_string()) || args.contains(&"-h".to_string()) {
         print_help();
         std::process::exit(0);
     }
-
     if args.contains(&"--init".to_string()) {
         utils::log(utils::LogLevel::Log, "Initializing project...");        
         //get project name from the next argument
@@ -27,12 +25,11 @@ fn main() {
         builder::init(&project_name);
         std::process::exit(0);
     }
-    
+
     #[cfg(target_os = "linux")]
     let (build_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
     let (build_config, targets) = utils::parse_config("./config_win32.toml", true);
-    
     #[cfg(target_os = "linux")]
     let packages = utils::Package::parse_packages("./config_linux.toml");
     #[cfg(target_os = "windows")]
@@ -58,8 +55,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let args: Vec<String> = env::args().collect();
-
+    let args: Vec<String> = env::args().collect();  //? consider is unnecessary
     let mut gen_cc = false;
     let mut valid_arg = false;
 

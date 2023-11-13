@@ -62,17 +62,21 @@ impl<'a> Target<'a> {
         } else if target_config.typ == "dll" {
             bin_path.push_str(".dll");
         }
+        else if target_config.typ == "static" {
+            bin_path.push_str(".lib");
+        }
         #[cfg(target_os = "linux")]
         if target_config.typ == "exe" {
             bin_path.push_str("");
         } else if target_config.typ == "dll" {
             bin_path.push_str(".so");
+        } else if target_config.typ == "static" {   //? added static lib type
+            bin_path.push_str(".a");
         }
         #[cfg(target_os = "windows")]
         let hash_file_path = format!("rukos_bld/{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
         let hash_file_path = format!("rukos_bld/{}.linux.hash", &target_config.name);
-
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
@@ -84,9 +88,9 @@ impl<'a> Target<'a> {
         }
         for dep_lib in &dependant_libs {
             //? consider add static libs
-            if dep_lib.target_config.typ != "dll" {
-                log(LogLevel::Error, "Can add only dlls as dependant libs");
-                log(LogLevel::Error, &format!("Target: {} is not a dll", dep_lib.target_config.name));
+            if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" {
+                log(LogLevel::Error, "Can add only dlls or static libraries as dependant libs");
+                log(LogLevel::Error, &format!("Target: {} is not a dll or static library", dep_lib.target_config.name));
                 log(LogLevel::Error, &format!("Target: {} is a {}", dep_lib.target_config.name, dep_lib.target_config.typ));
                 std::process::exit(1);
             }
@@ -109,7 +113,7 @@ impl<'a> Target<'a> {
                     x.name.clone()
                 } else {
                     "".to_string()
-                }
+                }  //? consider eliminate or add static!
             }).collect::<Vec<String>>().into_iter().filter(|x| x != "").collect::<Vec<String>>()));
             std::process::exit(1);
         }
@@ -327,7 +331,7 @@ impl<'a> Target<'a> {
         }
     }
 
-    //  "command": "c++ -c -o ./obj_bin/app.o -I./Engine/src/include -g -Wall -Wunused -I/usr/include/freetype2 -I/usr/include/libpng16 -I/usr/include/harfbuzz -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-4 -pthread -std=c++17 -fPIC ./Engine/src/core/app.cpp",
+    // "command": "c++ -c -o ./obj_bin/app.o -I./Engine/src/include -g -Wall -Wunused -I/usr/include/freetype2 -I/usr/include/libpng16 -I/usr/include/harfbuzz -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-4 -pthread -std=c++17 -fPIC ./Engine/src/core/app.cpp",
     /// Generates the compile_commands.json file for a src
     fn gen_cc(&self, src: &Src) -> String {
         let mut cc = String::new();
@@ -446,14 +450,14 @@ impl<'a> Target<'a> {
     fn add_src(&mut self, path: String) {
         let name = Target::get_src_name(&path);
         let obj_name = self.get_src_obj_name(&name);
-        log(LogLevel::Info, &format!("Added source file: {}", &name));
+        //log(LogLevel::Info, &format!("Added source file: {}", &name));
         let dependant_includes=self.get_dependant_includes(&path);
-        log(LogLevel::Info, &format!("  Dependant includes: {:?}", &dependant_includes));
+        //log(LogLevel::Info, &format!("  Dependant includes: {:?}", &dependant_includes));
         let bin_path = self.bin_path.clone();
         self.srcs.push(Src::new(path, name, obj_name, bin_path, dependant_includes));
     }
 
-    // Return the file name without the extension from the path
+    /// Return the file name without the extension from the path
     fn get_src_name(path: &str) -> String {
         let path_buf = PathBuf::from(path);
         let file_name = path_buf.file_name().unwrap().to_str().unwrap();
@@ -475,14 +479,11 @@ impl<'a> Target<'a> {
     /// Returns a vector of .h or .hpp files the given C/C++ depends on
     fn get_dependant_includes(&mut self, path: &str) -> Vec<String> {
         let mut result = Vec::new();
-        log(LogLevel::Log, &format!("Getting dependant includes for: {}", &path));
         let include_substrings = self.get_include_substrings(path).unwrap_or_else(|| {
             log(LogLevel::Error, &format!("Failed to get include substrings for file: {}", path));
             std::process::exit(1);
         });
-        log(LogLevel::Log, &format!("  Include substrings: {:?}", &include_substrings));
         if include_substrings.len() == 0 {
-            log(LogLevel::Debug, &format!(" {} depends on: {:?}", path, result));
             return result;
         }
         for include_substring in include_substrings {
@@ -496,7 +497,6 @@ impl<'a> Target<'a> {
             self.dependant_includes.insert(include_substring, result.clone()); 
         }
         let result = result.into_iter().unique().collect();
-        log(LogLevel::Debug, &format!(" {} depends on: {:?}", path, result));
         result
     }
 
@@ -513,7 +513,7 @@ impl<'a> Target<'a> {
         let mut lines = buf.lines();
         let mut include_substrings = Vec::new();
         while let Some(line) = lines.next() {
-            if line.starts_with("#include \"") {
+            if line.starts_with("#include \"") {  //? consider add "#include \<"
                 let include_path = line.split("\"").nth(1).unwrap().to_owned();
                 include_substrings.push(include_path);
             }
@@ -726,6 +726,7 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
             std::process::exit(1);
         });
     }
+    // Construct each target separately.
     for target in targets {
         let mut tgt = Target::new(build_config, &target, &targets, &packages);
         tgt.build(gen_cc);
