@@ -11,7 +11,7 @@ Write a config_linux.toml for linux and a config_win32.toml for windows in the p
 ## Features & TODOs
 
 * [x] Multithreaded
-* [x] Can generate compile_commnds.json
+* [x] Can generate compile_commands.json
 * [x] Auto add project libraries to other targets
 * [x] Get libraries as packages from github
 * [ ] Support static libraries

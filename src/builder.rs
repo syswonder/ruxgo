@@ -101,9 +101,7 @@ impl<'a> Target<'a> {
                 log(LogLevel::Error, "Dependant lib name must start with lib");
                 log(LogLevel::Error, &format!("Target: {} does not start with lib", dep_lib.target_config.name));
                 std::process::exit(1);
-            } else {
-                log(LogLevel::Debug, &format!("Dependant lib: {} starts with lib", dep_lib.target_config.name));
-            }
+            } 
         }
         if target_config.deps.len() > dependant_libs.len() + packages.len() {
             log(LogLevel::Error, "Dependant libs not found");
@@ -142,7 +140,7 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             });
         }
-        for pkg in self.packages {  // find "dll" in other packages
+        for pkg in self.packages {  // also build other target of package
             for target in &pkg.target_configs {
                 let empty: Vec<Package> = Vec::new();
                 if target.typ == "dll" {
@@ -158,7 +156,6 @@ impl<'a> Target<'a> {
         let mut src_ccs = Vec::new();
         for src in &self.srcs {
             let (to_build, _) = src.to_build(&self.path_hash);
-            log(LogLevel::Debug, &format!("{}: {}", src.path, to_build));
             if to_build {
                 to_link = true;
                 link_causer.push(&src.path);
@@ -198,7 +195,7 @@ impl<'a> Target<'a> {
         // If the level is not "Info" or "Debug", update the compilation progress bar
         self.srcs.par_iter().for_each(|src| {
             let (to_build, _message) = src.to_build(&self.path_hash);
-            log(LogLevel::Debug, &format!("{}: {}", src.path, to_build));
+            log(LogLevel::Debug, &format!("{}==>{}", src.path, to_build));
             if to_build {
                 src.build(self.build_config, self.target_config, &self.dependant_libs);
                 src_hash_to_update.lock().unwrap().push(src);
@@ -208,7 +205,7 @@ impl<'a> Target<'a> {
                     let mut num_complete = num_complete.lock().unwrap();
                     *num_complete += 1;
                     let progress_bar = progress_bar.lock().unwrap();
-                    let template = format!("    {}{}", "Compiling :".cyan(), "[{bar:40.white/white}] {pos}/{len} ({percent}%) {msg}[{elapsed_precise}] ");
+                    let template = format!("    {}{}", "Compiling :".cyan(), "[{bar:40.}] {pos}/{len} ({percent}%) {msg}[{elapsed_precise}] ");
                     progress_bar.set_style(ProgressStyle::with_template(&template)
                     .unwrap()
                     .progress_chars("=>-"));
@@ -256,12 +253,15 @@ impl<'a> Target<'a> {
         }
 
         let mut cmd = String::new();
-        cmd.push_str(&self.build_config.compiler);
+        cmd.push_str(&self.build_config.compiler);  //? Consider using the rust-lld command link libs...
         cmd.push_str(" -o ");
         cmd.push_str(&self.bin_path);
         if self.target_config.typ == "dll" {
-            cmd.push_str(" -shared ");
-        } 
+            cmd.push_str(" -shared");
+        } else if self.target_config.typ == "static" {
+            cmd.push_str(" -static");
+            cmd.push_str(" -no-pie");
+        }
         for obj in objs {
             cmd.push_str(" ");
             cmd.push_str(obj);
@@ -279,7 +279,6 @@ impl<'a> Target<'a> {
             let lib_name = lib_name.replace("lib", "-l");
             cmd.push_str(&lib_name);
             cmd.push_str(" ");
-
         }
         // Get libraries as packages
         for package in self.packages {
@@ -293,22 +292,12 @@ impl<'a> Target<'a> {
                 cmd.push_str(&lib_name);
                 cmd.push_str(" ");
             }
-            //? have bug
-            cmd.push_str(" -I");
-            cmd.push_str(" ");
-
-            cmd.push_str(" -l");
-            cmd.push_str(&package.name);
-            cmd.push_str(" ");
         }
-
+        // Added -L library search path
         if self.packages.len() + self.dependant_libs.len() > 0 {
-            cmd.push_str(" -L");
+            cmd.push_str("-L");
             cmd.push_str(BUILD_DIR);
-            cmd.push_str(" ");
-
-            cmd.push_str(" -Wl,-rpath,");
-            cmd.push_str(BUILD_DIR);
+            cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
             cmd.push_str(" ");
         }
         cmd.push_str(&self.target_config.libs);
@@ -567,7 +556,7 @@ impl Src {
         cmd.push_str(" ");
         //? consider some includes in other depandant_libs?
         for dependant_lib in dependant_libs {
-            cmd.push_str("-I");
+            cmd.push_str(" -I");
             cmd.push_str(dependant_lib.target_config.include_dir.as_str());
             cmd.push_str(" ");
         }
