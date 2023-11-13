@@ -24,11 +24,10 @@ fn main() {
         utils::log(utils::LogLevel::Log, "Initializing project...");        
         //get project name from the next argument
         let project_name = args.iter().skip_while(|x| x != &&"--init".to_string()).nth(1).unwrap().to_string();
-        //Create the project directory
-        std::fs::create_dir(&project_name).unwrap();
         builder::init(&project_name);
         std::process::exit(0);
     }
+    
     #[cfg(target_os = "linux")]
     let (build_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
