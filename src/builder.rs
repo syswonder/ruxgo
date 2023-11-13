@@ -1,3 +1,5 @@
+//! This module contains the build related functions
+
 use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
@@ -41,6 +43,12 @@ struct Src {
 }
 
 impl<'a> Target<'a> {
+    /// Creates a new target
+    /// # Arguments
+    /// * `build_config` - Build config
+    /// * `target_config` - Target config
+    /// * `targets` - All targets
+    /// * `packages` - All packages
     pub fn new(build_config: &'a BuildConfig, target_config: &'a TargetConfig, targets: &'a Vec<TargetConfig>, packages: &'a Vec<Package>) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
@@ -120,6 +128,9 @@ impl<'a> Target<'a> {
         target
     }
 
+    /// Builds the target
+    /// # Arguments
+    /// * `gen_cc` - Generate compile_commands.json
     pub fn build(&mut self, gen_cc: bool) {
         if !Path::new("rukos_bld").exists() {
             std::fs::create_dir("rukos_bld").unwrap_or_else(|why| {
@@ -219,8 +230,10 @@ impl<'a> Target<'a> {
         }
     }
 
-    /// Link object files and create an executable or shared library
-    /// Todo:Consider using the rust-lld command link library...
+    /// Links the dependant libs(or targets)
+    /// #### Todo: Consider using the rust-lld command link libs...
+    /// # Arguments
+    /// * `dep_targets` - The targets that this target depends on
     pub fn link(&self, dep_targets: &Vec<Target>) {
         let mut objs = Vec::new();
         if !Path::new(BUILD_DIR).exists() {
@@ -264,6 +277,7 @@ impl<'a> Target<'a> {
             cmd.push_str(" ");
 
         }
+        // Get libraries as packages
         for package in self.packages {
             for target in &package.target_configs {
                 cmd.push_str(" -I");
@@ -275,7 +289,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(&lib_name);
                 cmd.push_str(" ");
             }
-
+            //? have bug
             cmd.push_str(" -I");
             cmd.push_str(" ");
 
@@ -314,7 +328,7 @@ impl<'a> Target<'a> {
     }
 
     //  "command": "c++ -c -o ./obj_bin/app.o -I./Engine/src/include -g -Wall -Wunused -I/usr/include/freetype2 -I/usr/include/libpng16 -I/usr/include/harfbuzz -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-4 -pthread -std=c++17 -fPIC ./Engine/src/core/app.cpp",
-    /// Generates the compile_commands.json file, since each source file may have different commands
+    /// Generates the compile_commands.json file for a src
     fn gen_cc(&self, src: &Src) -> String {
         let mut cc = String::new();
         cc.push_str("{\n");  // Json start
@@ -599,6 +613,8 @@ impl Src {
 }
 
 /// Cleans the local targets
+/// # Arguments
+/// * `targets` - A vector of targets to clean
 pub fn clean(targets: &Vec<TargetConfig>) {
     if Path::new("rukos_bld").exists() {
         fs::remove_dir_all("rukos_bld").unwrap_or_else(|why| {  //? have some differences
@@ -654,6 +670,8 @@ pub fn clean(targets: &Vec<TargetConfig>) {
 }
 
 /// Cleans the downloaded packages
+/// # Arguments
+/// * `packages` - A vector of packages to clean
 pub fn clean_packages(packages: &Vec<Package>) {
     for pack in packages {
         for target in &pack.target_configs {
@@ -683,6 +701,10 @@ pub fn clean_packages(packages: &Vec<Package>) {
 }
 
 /// Builds all targets
+/// # Arguments
+/// * `build_config` - The local build configuration
+/// * `targets` - A vector of targets to build
+/// * `gen_cc` - Whether to generate a compile_commands.json file
 pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bool, packages: &Vec<Package>) {
     if !Path::new("rukos_bld").exists() {
         fs::create_dir("rukos_bld").unwrap_or_else(|why| {
@@ -727,6 +749,11 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
 }
 
 /// Runs the exe target
+/// # Arguments
+/// * `build_config` - The local build configuration
+/// * `exe_target` - The exe target to run
+/// * `targets` - A vector of targets
+/// * `packages` - A vector of packages
 pub fn run(build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>, packages: &Vec<Package>) {
     let trgt = Target::new(build_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {

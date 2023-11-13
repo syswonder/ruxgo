@@ -1,6 +1,6 @@
 /target
 config_linux.toml
+config_win32.toml
 /Nomu_Engine
 *.hash
-.cache/
 compile_commands.json

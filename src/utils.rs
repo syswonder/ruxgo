@@ -1,3 +1,5 @@
+//! This file contains various logging and toml parsing functions
+//! used by the rukoskit library
 use std::{fs::File, io::Read, path::Path, process::Command};
 use toml::{Table, Value};
 use colored::Colorize;
@@ -7,7 +9,7 @@ static OBJ_DIR: &str  = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str  = "rukos_bld/obj_linux";
 
-//Log utils
+/// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
 pub enum LogLevel {
     Debug,
@@ -17,6 +19,25 @@ pub enum LogLevel {
     Error,
 }
 
+/// This function is used to log messages to the console
+/// # Arguments
+/// * `level` - The log level of the message
+/// * `message` - The message to log
+/// # Example
+/// ```
+/// log(LogLevel::Info, "Hello World!");
+/// log(LogLevel::Error, &format!("Something went wrong! {}", error));
+/// ```
+///
+/// # Level setting
+/// The log level can be set by setting the environment variable `RUKOSKIT_LOG_LEVEL`
+/// to one of the following values:
+/// * `Debug`
+/// * `Info`
+/// * `Log`
+/// * `Warn`
+/// * `Error`
+/// If the environment variable is not set, the default log level is `Log`
 pub fn log(level: LogLevel, message: &str) {
     let level_str = match level {
         LogLevel::Debug => "[DEBUG]".purple(),
@@ -41,20 +62,21 @@ pub fn log(level: LogLevel, message: &str) {
                 LogLevel::Log
             }
         }
-        Err(_) => LogLevel::Debug,
+        Err(_) => LogLevel::Debug,   //? consider replace by Log
     };
     if level >= log_level {
         println!("{} {}", level_str, message);
     }
 }
 
-//Toml utils
+/// Struct descibing the build config of the local project
 #[derive(Debug)]
 pub struct BuildConfig {
     pub compiler: String,
     pub packages: Vec<String>,
 }
 
+/// Struct describing the target config of the local project
 #[derive(Debug)]
 pub struct TargetConfig {
     pub name: String,
@@ -67,7 +89,10 @@ pub struct TargetConfig {
 }
 
 impl TargetConfig {
-    pub fn get_src_names(path: &str) -> Vec<String> {
+    /// Returns a vec of all filenames ending in .cpp or .c in the src directory
+    /// # Arguments
+    /// * `path` - The path to the src directory
+    fn get_src_names(path: &str) -> Vec<String> {
         let mut src_names = Vec::new();
         let src_path = Path::new(&path);
         let src_entries = std::fs::read_dir(src_path).unwrap_or_else(|_| {
@@ -92,6 +117,10 @@ impl TargetConfig {
     }
 }
 
+/// This function is used to parse the config file of local project
+/// # Arguments
+/// * `path` - The path to the config file
+/// * `check_dup_src` - If true, the function will check for duplicately named source files
 pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<TargetConfig>) {
     // open toml file and parse it into a string
     let mut file = File::open(path).unwrap_or_else(|_| {
@@ -231,6 +260,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     (build_config, tgt)
 }
 
+/// Represents a package
 #[derive(Debug)]
 pub struct Package {
     pub name: String,
@@ -241,6 +271,7 @@ pub struct Package {
 }
 
 impl Package {
+    /// Creates a new package
     pub fn new(name: String, repo: String, branch: String, build_config: BuildConfig, target_configs: Vec<TargetConfig>) -> Package {
         Package {
             name,
@@ -250,7 +281,8 @@ impl Package {
             target_configs,
         }
     }
-
+    
+    /// Updates the package to latest commit
     pub fn update(&self) {
         let mut cmd = String::from("cd");
         cmd.push_str(&format!(" ./rukos_bld/sources/{}", self.name));
@@ -277,6 +309,7 @@ impl Package {
         }
     }
 
+    /// Restores package to last offline commit
     pub fn restore(&self) {
         let mut cmd = String::from("cd");
         cmd.push_str(&format!(" ./rukos_bld/sources/{}", self.name));
@@ -303,6 +336,10 @@ impl Package {
         }
     }
 
+    /// Parses a package contained in a folder
+    /// The folder must contain a config toml file
+    /// # Arguments
+    /// * `path` - The path to the folder containing the package
     pub fn parse_packages(path: &str) -> Vec<Package> {
         let mut packages: Vec<Package> = Vec::new();
         //initialize fields

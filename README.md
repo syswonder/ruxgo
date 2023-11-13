@@ -1,8 +1,12 @@
 # RukosKit
 
-A Cargo-like build tool for C and C++ applications
+A Cargo-like build tool for building C and C++ applications
 
-🚧 Working In Progress.
+🚧 Working In Progress. 
+
+## Usage
+
+Write a config_linux.toml for linux and a config_win32.toml for windows in the project directory
 
 ## Features & TODOs
 
