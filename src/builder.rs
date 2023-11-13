@@ -735,8 +735,9 @@ pub fn run(build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<
     }
     log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
     let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
-    // sets the stdout and stderr of the cmd to be inherited by the parent process.
-    let output = cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit()).output();
+    // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
+    cmd.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    let output = cmd.output();
     if !output.is_err() {
         log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
     } else {
