@@ -95,7 +95,6 @@ fn main() {
             if i == 0 {
                 continue;
             }
-
             if arg.starts_with("--") {
                 continue;
             }
@@ -105,7 +104,6 @@ fn main() {
             }
 
             let arg = arg.as_str()[1..].to_string();
-
             let all_letters = "crb";
             for letter in arg.chars() {
                 if !all_letters.contains(letter) {

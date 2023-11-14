@@ -80,6 +80,10 @@ impl<'a> Target<'a> {
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
+            // Exclude the target of the rust_lib
+            if *dependant_lib == "libaxlibc"{
+                continue;
+            }
             for target in targets {
                 if target.name == *dependant_lib {
                     dependant_libs.push(Target::new(build_config, target, targets, packages));
@@ -103,9 +107,10 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             } 
         }
-        if target_config.deps.len() > dependant_libs.len() + packages.len() {
+        let filtered_deps: Vec<_> = target_config.deps.iter().filter(|dep| **dep != "libaxlibc").collect();
+        if filtered_deps.len() > dependant_libs.len() + packages.len() {
             log(LogLevel::Error, "Dependant libs not found");
-            log(LogLevel::Error, &format!("Dependant libs: {:?}", target_config.deps));
+            log(LogLevel::Error, &format!("Dependant libs: {:?}", filtered_deps));
             log(LogLevel::Error, &format!("Found libs: {:?}", targets.iter().map(|x| {
                 if x.typ == "dll" {
                     x.name.clone()
@@ -717,8 +722,45 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
     }
     // Construct each target separately.
     for target in targets {
-        let mut tgt = Target::new(build_config, &target, &targets, &packages);
-        tgt.build(gen_cc);
+        // Construct rust_lib: libaxlibc.o
+        if target.name == "libaxlibc"{
+            if !Path::new(BUILD_DIR).exists() {
+                let cmd = format!("mkdir -p {}", BUILD_DIR);
+                let output = Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .output()
+                .expect("failed to execute process");
+                if !output.status.success() {
+                    log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+            }
+            log(LogLevel::Info, "Building rukos's rust_lib...");
+            let mut cmd = String::new();
+            cmd.push_str("cargo build ");
+            cmd.push_str(&target.cflags);
+            log(LogLevel::Debug, &format!("Executing command: {}", cmd));
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .output()
+                .expect("Failed to execute command");
+            if !output.status.success() {
+                log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
+                std::process::exit(1);
+            }
+            // Copy libaxlibc.a to rukos_bld/bin/
+            // Consider changing the following strings to Static variable
+            let src_path = format!("{}/arceos/target/x86_64-unknown-none/release/libaxlibc.a", env!("HOME"));
+            let dest_path = format!("rukos_bld/bin/libaxlibc.a");
+            fs::copy(src_path, dest_path).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not copy libaxlibc.a to rukos_bld/bin/: {}", why));
+                std::process::exit(1);
+            });
+        }else{
+            let mut tgt = Target::new(build_config, &target, &targets, &packages);
+            tgt.build(gen_cc);
+        }
     }
     if gen_cc {
         let mut cc_file = fs::OpenOptions::new()

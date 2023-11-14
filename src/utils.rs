@@ -62,7 +62,7 @@ pub fn log(level: LogLevel, message: &str) {
                 LogLevel::Log
             }
         }
-        Err(_) => LogLevel::Info,   //? consider replace by Log
+        Err(_) => LogLevel::Debug,   //? consider replace by Log
     };
     if level >= log_level {
         println!("{} {}", level_str, message);
@@ -150,7 +150,6 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
             log(LogLevel::Error, "packages is not an array");
             std::process::exit(1);
         });
-
     for pkg in pkgs_toml {
         pkgs.push(pkg.as_str().unwrap_or_else(|| {
             log(LogLevel::Error, "packages are a vec of strings");
@@ -216,8 +215,8 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
             }).to_string(),
             deps,
         };
-        if target_config.typ != "exe" && target_config.typ != "dll" {
-            log(LogLevel::Error, "Type must be exe or dll");
+        if target_config.typ != "exe" && target_config.typ != "dll" && target_config.typ != "static" {
+            log(LogLevel::Error, "Type must be exe, dll, or static");
             std::process::exit(1);
         }
         tgt.push(target_config);
@@ -237,9 +236,13 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
         log(LogLevel::Error, "Target names must be unique");
         std::process::exit(1);
     }
-    // check duplicate srcs in target(no remove)
+    // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
+            // Exclude the target of the rust_lib
+            if target.name == "libaxlibc"{
+                continue;
+            }
             let mut src_file_names = TargetConfig::get_src_names(&target.src);
             src_file_names.sort();
             if src_file_names.len() == 0 {
