@@ -90,6 +90,15 @@ fn main() {
         valid_arg = true;
     }
 
+    let bin_args : Option<Vec<&str>>;
+    if args.contains(&"--bin-args".to_string()) {
+        let bin_args_index = args.iter().position(|x| x == "--bin-args").unwrap();
+        bin_args = Some(args.iter().skip(bin_args_index + 1).map(|x| x.as_str()).collect());
+        valid_arg = true;
+    } else {
+        bin_args = None;
+    }
+
     for (i, arg) in args.iter().enumerate() {
         if arg.starts_with("-") {
             if i == 0 {
@@ -128,7 +137,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 utils::log(utils::LogLevel::Log, "Running executable...");
-                commands::run(&build_config, &exe_target.unwrap(), &targets, &packages);
+                commands::run(bin_args.clone(), &build_config, &exe_target.unwrap(), &targets, &packages);
             }
         }
     }
@@ -149,6 +158,7 @@ fn print_help() {
     utils::log(utils::LogLevel::Log, "");
     utils::log(utils::LogLevel::Log, "\t--help\t\t\tShow this help message");
     utils::log(utils::LogLevel::Log, "\t--init <project name>\tInitialize the project");
+    utils::log(utils::LogLevel::Log, "\t--bin-args <args>\tPass arguments to the executable");
     utils::log(utils::LogLevel::Log, "\t--gen-cc\t\tGenerate compile_commands.json");
     utils::log(utils::LogLevel::Log, "\t--clean-packages\tClean the package binaries");
     utils::log(utils::LogLevel::Log, "\t--update-packages\tUpdate the packages");
