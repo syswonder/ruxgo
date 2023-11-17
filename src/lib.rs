@@ -8,6 +8,8 @@
 
 /// Contains code to build projects
 pub mod builder;
+/// Contains code that handles various binary flags
+pub mod commands;
 /// Contains logger and config parser
 pub mod utils;
 /// Contains hashing related functions

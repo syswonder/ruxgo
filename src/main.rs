@@ -1,4 +1,4 @@
-use rukoskit::{utils, builder};
+use rukoskit::{utils, commands};
 use std::env;
 use std::path::Path;
 
@@ -22,7 +22,7 @@ fn main() {
         utils::log(utils::LogLevel::Log, "Initializing project...");        
         //get project name from the next argument
         let project_name = args.iter().skip_while(|x| x != &&"--init".to_string()).nth(1).unwrap().to_string();
-        builder::init(&project_name);
+        commands::init(&project_name);
         std::process::exit(0);
     }
 
@@ -72,7 +72,7 @@ fn main() {
     }
     if args.contains(&"--clean-packages".to_string()) {
         utils::log(utils::LogLevel::Log, "Cleaning packages...");
-        builder::clean_packages(&packages);
+        commands::clean_packages(&packages);
         valid_arg = true;
     }
     if args.contains(&"--update-packages".to_string()) {
@@ -113,12 +113,12 @@ fn main() {
             }
             if arg.contains('c') {
                 utils::log(utils::LogLevel::Log, "Cleaning...");
-                builder::clean(&targets);
+                commands::clean(&targets);
                 valid_arg = true;
             }
             if arg.contains('b') {
                 utils::log(utils::LogLevel::Log, "Building project...");
-                builder::build(&build_config, &targets, gen_cc, &packages);
+                commands::build(&build_config, &targets, gen_cc, &packages);
                 valid_arg = true;
             }
             if arg.contains('r') {
@@ -128,7 +128,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 utils::log(utils::LogLevel::Log, "Running executable...");
-                builder::run(&build_config, &exe_target.unwrap(), &targets, &packages);
+                commands::run(&build_config, &exe_target.unwrap(), &targets, &packages);
             }
         }
     }
