@@ -14,6 +14,8 @@ Write a config_linux.toml for linux and a config_win32.toml for windows in the p
 * [x] Can generate compile_commands.json
 * [x] Auto add project libraries to other targets
 * [x] Get libraries as packages from github
-* [x] Support static libraries rust_lib
-* [ ] Ar cmd
-* [ ] Ld cmd
+* [x] Supported static libraries rust_lib
+* [x] Supported ar and ld commands as optional
+* [ ] Qemu cmd
+* [ ] Env cmd
+* [ ] Support different Arch

@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "rukoskit"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "colored",
  "indicatif",

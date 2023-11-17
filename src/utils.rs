@@ -73,6 +73,8 @@ pub fn log(level: LogLevel, message: &str) {
 #[derive(Debug)]
 pub struct BuildConfig {
     pub compiler: String,
+    pub ar: String,
+    pub ld: String,
     pub packages: Vec<String>,
 }
 
@@ -140,7 +142,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
 
     let mut pkgs: Vec<String> = Vec::new();
     let empty_value = Value::Array(Vec::new());
-    //pkgs is optional
+    // Pkgs is optional
     let pkgs_toml = config["build"].as_table().unwrap_or_else(|| {
             log(LogLevel::Error, "Could not find build in config file");
             std::process::exit(1);})
@@ -156,16 +158,37 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
             std::process::exit(1);
         }).to_string());
     }
-    // parse the string into a struct
-    let build_config = BuildConfig {
-        compiler: config["build"]["compiler"].as_str().unwrap_or_else(|| {
-            log(LogLevel::Error, "Could not find compiler in config file");
+
+    let compiler= config["build"]["compiler"].as_str().unwrap_or_else(|| {
+        log(LogLevel::Error, "Could not find compiler in config file");
+        std::process::exit(1);
+    }).to_string();
+    //? Consider add Ar and ld for optional
+    let ar = if let Some(ar_value) = config["build"].as_table().and_then(|val| val.get("ar")) {
+        ar_value.as_str().unwrap_or_else(|| {
+            log(LogLevel::Error, "ar is not a string");
             std::process::exit(1);
-        }).to_string(),
+        }).to_string()
+    } else {
+        compiler.clone()
+    };
+    let ld = if let Some(ld_value) = config["build"].as_table().and_then(|val| val.get("ld")) {
+        ld_value.as_str().unwrap_or_else(|| {
+            log(LogLevel::Error, "ar is not a string");
+            std::process::exit(1);
+        }).to_string()
+    } else {
+        compiler.clone()
+    };
+    // Parse the string into a struct
+    let build_config = BuildConfig {
+        compiler,
+        ar,
+        ld,
         packages:pkgs,
     };
 
-    // considering multiple targets
+    // Considering multiple targets
     let mut tgt = Vec::new();
     let targets = config["targets"].as_array().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find targets in config file");
@@ -174,7 +197,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     for target in targets {
         let mut deps: Vec<String> = Vec::new();
         let empty_value = Value::Array(Vec::new());
-        //deps is optional
+        // Deps is optional
         let deps_toml = target.get("deps").unwrap_or_else(|| { &empty_value })
             .as_array()
             .unwrap_or_else(|| {
@@ -223,19 +246,19 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     }
 
     // Sort and remove duplicate targets
-    if tgt.len() == 0 {
-        log(LogLevel::Error, "No targets found");
-        std::process::exit(1);
-    }
-    let original_len = tgt.len();
-    tgt.sort_by_key(|t| t.name.clone());
-    tgt.dedup_by_key(|t| t.name.clone());
-    let dedup_len = tgt.len();
-    if original_len != dedup_len {
-        log(LogLevel::Error, "Duplicate targets found");
-        log(LogLevel::Error, "Target names must be unique");
-        std::process::exit(1);
-    }
+    // if tgt.len() == 0 {
+    //     log(LogLevel::Error, "No targets found");
+    //     std::process::exit(1);
+    // }
+    // let original_len = tgt.len();
+    // tgt.sort_by_key(|t| t.name.clone());
+    // tgt.dedup_by_key(|t| t.name.clone());
+    // let dedup_len = tgt.len();
+    // if original_len != dedup_len {
+    //     log(LogLevel::Error, "Duplicate targets found");
+    //     log(LogLevel::Error, "Target names must be unique");
+    //     std::process::exit(1);
+    // }
     // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
@@ -351,6 +374,8 @@ impl Package {
         let mut branch = String::new();
         let mut build_config = BuildConfig {
             compiler: String::new(),
+            ar: String::new(),
+            ld: String::new(),
             packages: Vec::new(),
         };
         let mut target_configs = Vec::new();

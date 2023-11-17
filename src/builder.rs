@@ -12,6 +12,7 @@ use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
+use std::env;
 
 static BUILD_DIR : &str = "rukos_bld/bin";
 #[cfg(target_os = "windows")]
@@ -256,56 +257,136 @@ impl<'a> Target<'a> {
         for src in &self.srcs {
             objs.push(&src.obj_name);
         }
-
         let mut cmd = String::new();
-        cmd.push_str(&self.build_config.compiler);  //? Consider using the rust-lld command link libs...
-        cmd.push_str(" -o ");
-        cmd.push_str(&self.bin_path);
         if self.target_config.typ == "dll" {
+            cmd.push_str(&self.build_config.compiler);
             cmd.push_str(" -shared");
-        } else if self.target_config.typ == "static" {
-            cmd.push_str(" -static");
-            cmd.push_str(" -no-pie");
-        }
-        for obj in objs {
             cmd.push_str(" ");
-            cmd.push_str(obj);
-        }
-        cmd.push_str(" ");
-        cmd.push_str(&self.target_config.cflags);
-        cmd.push_str(" ");
-        // link other dependant libraries
-        for dep_target in dep_targets {
-            cmd.push_str(" -I");
-            cmd.push_str(&dep_target.target_config.include_dir);
-            cmd.push_str(" ");
-
-            let lib_name = dep_target.target_config.name.clone();
-            let lib_name = lib_name.replace("lib", "-l");
-            cmd.push_str(&lib_name);
-            cmd.push_str(" ");
-        }
-        // Get libraries as packages
-        for package in self.packages {
-            for target in &package.target_configs {
-                cmd.push_str(" -I");
-                cmd.push_str(&target.include_dir);
+            cmd.push_str(" -o ");
+            cmd.push_str(&self.bin_path);
+            for obj in objs {
                 cmd.push_str(" ");
-
-                let lib_name = target.name.clone();
+                cmd.push_str(obj);
+            }
+            cmd.push_str(" ");
+            cmd.push_str(&self.target_config.cflags);
+            cmd.push_str(" ");
+            // link other dependant libraries
+            for dep_target in dep_targets {
+                cmd.push_str(" -I");
+                cmd.push_str(&dep_target.target_config.include_dir);
+                cmd.push_str(" ");
+                let lib_name = dep_target.target_config.name.clone();
                 let lib_name = lib_name.replace("lib", "-l");
                 cmd.push_str(&lib_name);
                 cmd.push_str(" ");
             }
-        }
-        // Added -L library search path
-        if self.packages.len() + self.dependant_libs.len() > 0 {
-            cmd.push_str("-L");
-            cmd.push_str(BUILD_DIR);
-            cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+            // Get libraries as packages
+            for package in self.packages {
+                for target in &package.target_configs {
+                    cmd.push_str(" -I");
+                    cmd.push_str(&target.include_dir);
+                    cmd.push_str(" ");
+
+                    let lib_name = target.name.clone();
+                    let lib_name = lib_name.replace("lib", "-l");
+                    cmd.push_str(&lib_name);
+                    cmd.push_str(" ");
+                }
+            }
+            // Added -L library search path
+            if self.packages.len() + self.dependant_libs.len() > 0 {
+                cmd.push_str(" -L");
+                cmd.push_str(BUILD_DIR);
+                cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+                cmd.push_str(" ");
+            }
             cmd.push_str(" ");
+            cmd.push_str(&self.target_config.libs);
+        } else if self.target_config.typ == "static" {
+            cmd.push_str(&self.build_config.ar);  // Use ar to archive target files
+            cmd.push_str(" ");
+            cmd.push_str(&self.target_config.libs); //? Consider to add ar flags or other static libs 
+            cmd.push_str(" ");
+            cmd.push_str(&self.bin_path);
+            for obj in objs {
+                cmd.push_str(" ");
+                cmd.push_str(obj);
+            }
+        } else if self.target_config.typ == "exe"{
+            if self.target_config.deps.contains(&"libaxlibc".to_string()){
+                cmd.push_str(&self.build_config.ld);
+                cmd.push_str(" ");
+                cmd.push_str(&self.target_config.libs);
+
+                // link other dependant libraries
+                for dep_target in dep_targets {
+                    cmd.push_str(" ");
+                    cmd.push_str(&dep_target.bin_path);
+                }
+                // Get libraries as packages
+                //? conside add bin_path field in struct package
+                for package in self.packages {
+                    for target in &package.target_configs {
+                        cmd.push_str(" ");
+                        cmd.push_str(BUILD_DIR);
+                        cmd.push_str("/");
+                        cmd.push_str(&target.name);
+                        cmd.push_str(".a");
+                    }
+                }
+                cmd.push_str(" ");
+                cmd.push_str("rukos_bld/bin/libaxlibc.a");
+                for obj in objs {
+                    cmd.push_str(" ");
+                    cmd.push_str(obj);
+                }
+                cmd.push_str(" -o ");
+                cmd.push_str(&self.bin_path);
+                cmd.push_str(".elf");
+            }else{
+                cmd.push_str(&self.build_config.compiler);
+                cmd.push_str(" -o ");
+                cmd.push_str(&self.bin_path);
+                for obj in objs {
+                    cmd.push_str(" ");
+                    cmd.push_str(obj);
+                }
+                cmd.push_str(" ");
+                cmd.push_str(&self.target_config.cflags);
+                cmd.push_str(" ");
+                // link other dependant libraries
+                for dep_target in dep_targets {
+                    cmd.push_str(" -I");
+                    cmd.push_str(&dep_target.target_config.include_dir);
+                    cmd.push_str(" ");
+                    let lib_name = dep_target.target_config.name.clone();
+                    let lib_name = lib_name.replace("lib", "-l");
+                    cmd.push_str(&lib_name);
+                    cmd.push_str(" ");
+                }
+                // Get libraries as packages
+                for package in self.packages {
+                    for target in &package.target_configs {
+                        cmd.push_str(" -I");
+                        cmd.push_str(&target.include_dir);
+                        cmd.push_str(" ");
+
+                        let lib_name = target.name.clone();
+                        let lib_name = lib_name.replace("lib", "-l");
+                        cmd.push_str(&lib_name);
+                        cmd.push_str(" ");
+                    }
+                }
+                // Added -L library search path
+                if self.packages.len() + self.dependant_libs.len() > 0 {
+                    cmd.push_str(" -L");
+                    cmd.push_str(BUILD_DIR);
+                    cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+                    cmd.push_str(" ");
+                }
+            }
         }
-        cmd.push_str(&self.target_config.libs);
 
         log(LogLevel::Info, &format!("Linking target: {}", &self.target_config.name));
         log(LogLevel::Info, &format!("  Command: {}", &cmd));
@@ -464,7 +545,7 @@ impl<'a> Target<'a> {
         let mut obj_name = String::new();
         obj_name.push_str(OBJ_DIR);
         obj_name.push_str("/");
-        obj_name.push_str(&self.target_config.name); //? consider eliminate
+        //obj_name.push_str(&self.target_config.name); //? consider eliminate
         obj_name.push_str(&src_name);
         obj_name.push_str(".o");
         obj_name
@@ -552,13 +633,14 @@ impl Src {
     fn build(&self, build_config: &BuildConfig, target_config: &TargetConfig, dependant_libs: &Vec<Target>) {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
-        cmd.push_str(" -c ");
-        cmd.push_str(&self.path);
-        cmd.push_str(" -o ");
-        cmd.push_str(&self.obj_name);
+        cmd.push_str(" ");
+        cmd.push_str(&target_config.cflags);
         cmd.push_str(" -I");
         cmd.push_str(&target_config.include_dir);
-        cmd.push_str(" ");
+
+        cmd.push_str(" -o ");
+        cmd.push_str(&self.obj_name);
+
         //? consider some includes in other depandant_libs?
         for dependant_lib in dependant_libs {
             cmd.push_str(" -I");
@@ -573,8 +655,9 @@ impl Src {
                 cmd.push_str(" ");
             }
         }
-        cmd.push_str(&target_config.cflags);
 
+        cmd.push_str(" -c ");
+        cmd.push_str(&self.path);
         if target_config.typ == "dll" {
             cmd.push_str(" -fPIC");  // fPIC is position-independent code and used in dynamic link scenarios
         }
@@ -735,6 +818,15 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
                     log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
                 }
             }
+            let arch = env::var("ARCH").unwrap_or_else(|_| "x86_64".to_string());
+            let platform_name = env::var("PLATFORM_NAME").unwrap_or_else(|_| "x86_64-qemu-q35".to_string());
+            let smp = env::var("SMP").unwrap_or_else(|_| "1".to_string());
+            let mode = env::var("MODE").unwrap_or_else(|_| "release".to_string());
+        
+            env::set_var("AX_ARCH", &arch);
+            env::set_var("AX_PLATFORM", &platform_name);
+            env::set_var("AX_SMP", &smp);
+            env::set_var("AX_MODE", &mode);
             log(LogLevel::Info, "Building rukos's rust_lib...");
             let mut cmd = String::new();
             cmd.push_str("cargo build ");
