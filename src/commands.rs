@@ -105,7 +105,8 @@ pub fn clean_packages(packages: &Vec<Package>) {
 /// * `build_config` - The local build configuration
 /// * `targets` - A vector of targets to build
 /// * `gen_cc` - Whether to generate a compile_commands.json file
-pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bool, packages: &Vec<Package>) {
+/// * `gen_vsc` - Whether to generate a .vscode/c_cpp_properties.json file
+pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bool, gen_vsc: bool, packages: &Vec<Package>) {
     if !Path::new("rukos_bld").exists() {
         fs::create_dir("rukos_bld").unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not create rukos_bld directory: {}", why));
@@ -126,6 +127,103 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
             std::process::exit(1);
         });
     }
+    
+    if gen_vsc {
+        let mut vsc_file = fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(".vscode/c_cpp_properties.json")
+            .unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not open vsc file: {}", why));
+                std::process::exit(1);
+            });
+
+        let inc_dirs : Vec<String> = targets.iter().map(|t| t.include_dir.clone()).collect();
+        let compiler_path : String = build_config.compiler.clone();
+
+        #[cfg(target_os = "windows")]
+        let compiler_path = Command::new("sh")
+            .arg("-c")
+            .arg(&format!("where {}", &compiler_path))
+            .output()
+            .expect("failed to execute process")
+            .stdout;
+
+        #[cfg(target_os = "windows")]
+        //Pick the first compiler path
+        let compiler_path = String::from_utf8(compiler_path).unwrap()
+            .split("\n").collect::<Vec<&str>>()[0].to_string()
+            .replace("\r", "")
+            .replace("\\", "/");
+        #[cfg(target_os = "windows")]
+        let vsc_json = format!(
+r#"{{
+    "configurations": [
+        {{
+            "name": "Win32",
+            "includePath": [
+                "{}"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "{}",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }}
+    ],
+    "version": 4
+}}"#,
+            inc_dirs.join("\",\n\t\t\t\t\""),
+            compiler_path
+        );
+        #[cfg(target_os = "linux")]
+        let compiler_path = Command::new("sh")
+            .arg("-c")
+            .arg(&format!("which {}", &compiler_path))
+            .output()
+            .expect("failed to execute process")
+            .stdout;
+
+        #[cfg(target_os = "linux")]
+        let compiler_path = String::from_utf8(compiler_path).unwrap().replace('\n', "");
+
+        #[cfg(target_os = "linux")]
+        let vsc_json = format!(
+r#"{{
+    "configurations": [
+        {{
+            "name": "Linux",
+            "includePath": [
+                "{}"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "{}",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }}
+    ],
+    "version": 4
+}}"#,
+            inc_dirs.join("\",\n\t\t\t\t\""),
+            compiler_path
+        );
+
+        //Write to file
+        vsc_file.write_all(vsc_json.as_bytes()).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not write to vsc file: {}", why));
+            std::process::exit(1);
+        });
+    }
+    
     // Construct each target separately.
     for target in targets {
         // Construct rust_lib: libaxlibc.o
