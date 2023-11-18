@@ -324,7 +324,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(obj);
             }
         } else if self.target_config.typ == "exe"{
-            if self.target_config.deps.contains(&"libaxlibc".to_string()){
+            if self.build_config.os.contains("rukos"){
                 cmd.push_str(&self.build_config.ld);
                 cmd.push_str(" ");
                 cmd.push_str(&self.target_config.libs);

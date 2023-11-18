@@ -1,5 +1,6 @@
 use crate::builder::Target;
 use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel};
+use crate::features;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -224,10 +225,12 @@ r#"{{
         });
     }
     
+    // Get features
+    let (ax_feats_final, lib_feats) = features::get_features(&build_config);
     // Construct os to libaxlibc.o;
     if build_config.os == "rukos" {
         log(LogLevel::Log, &format!("Compiling OS: {}", build_config.os));
-        build_os();
+        build_os(&ax_feats_final, &lib_feats);
     };
 
     // Construct each target separately.
@@ -255,7 +258,7 @@ r#"{{
 }
 
 /// Builds the specified os
-fn build_os() {
+fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
     if !Path::new(BUILD_DIR).exists() {
         let cmd = format!("mkdir -p {}", BUILD_DIR);
         let output = Command::new("sh")
@@ -270,10 +273,21 @@ fn build_os() {
     let mut cmd = String::new();
     cmd.push_str("cargo build");
     cmd.push_str(" ");
-    //? add features
     cmd.push_str("--target x86_64-unknown-none --target-dir /home/beichen/arceos/target --release -p axlibc");
     cmd.push_str(" ");
-    cmd.push_str("--features \"axfeat/log-level-warn axfeat/bus-pci axfeat/paging axlibc/alloc\"");
+    //? add features
+    cmd.push_str("--features ");
+    cmd.push_str("\"");
+    for ax_feat in ax_feats {
+        cmd.push_str(ax_feat);
+        cmd.push_str(" ");
+    }
+    for lib_feat in lib_feats {
+        cmd.push_str(lib_feat);
+        cmd.push_str(" ");
+    }
+    cmd.push_str("\"");
+    //cmd.push_str("\"axfeat/log-level-warn axfeat/bus-pci axfeat/paging axlibc/alloc\"");
     log(LogLevel::Debug, &format!("Command: {}", cmd));
     let output = Command::new("sh")
         .arg("-c")

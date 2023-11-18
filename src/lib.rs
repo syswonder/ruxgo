@@ -14,3 +14,5 @@ pub mod commands;
 pub mod utils;
 /// Contains hashing related functions
 pub mod hasher;
+/// Contains features related functions
+pub mod features;

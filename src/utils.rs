@@ -76,6 +76,7 @@ pub struct BuildConfig {
     pub ar: String,
     pub ld: String,
     pub os: String,
+    pub features: Vec<String>,
     pub packages: Vec<String>,
 }
 
@@ -146,10 +147,10 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
         log(LogLevel::Error, "Could not find build in config file");
         std::process::exit(1);
     });
-    // Parse pkgs (optional)
+    // Parse pkgs
     let mut pkgs: Vec<String> = Vec::new();
-    let empty_value = Value::Array(Vec::new());
-    let pkgs_toml = build.get("packages").unwrap_or_else(|| &empty_value)
+    let empty_pkgs = Value::Array(Vec::new());
+    let pkgs_toml = build.get("packages").unwrap_or_else(|| &empty_pkgs)
         .as_array()
         .unwrap_or_else(|| {
             log(LogLevel::Error, "packages is not an array");
@@ -158,6 +159,21 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     for pkg in pkgs_toml {
         pkgs.push(pkg.as_str().unwrap_or_else(|| {
             log(LogLevel::Error, "packages are a vec of strings");
+            std::process::exit(1);
+        }).to_string());
+    }
+    // Parse features
+    let mut features: Vec<String> = Vec::new();
+    let empty_features = Value::Array(Vec::new());
+    let features_toml = build.get("features").unwrap_or_else(|| &empty_features)
+        .as_array()
+        .unwrap_or_else(|| {
+            log(LogLevel::Error, "features is not an array");
+            std::process::exit(1);
+        });
+    for feature in features_toml {
+        features.push(feature.as_str().unwrap_or_else(|| {
+            log(LogLevel::Error, "feature are a vec of strings");
             std::process::exit(1);
         }).to_string());
     }
@@ -189,6 +205,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
         ar,
         ld,
         os,
+        features,
         packages:pkgs,
     };
 
@@ -200,9 +217,9 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     });
     for target in targets {
         let mut deps: Vec<String> = Vec::new();
-        let empty_value = Value::Array(Vec::new());
+        let empty_pkgs = Value::Array(Vec::new());
         // Deps is optional
-        let deps_toml = target.get("deps").unwrap_or_else(|| { &empty_value })
+        let deps_toml = target.get("deps").unwrap_or_else(|| { &empty_pkgs })
             .as_array()
             .unwrap_or_else(|| {
                 log(LogLevel::Error, "Deps is not an array");
@@ -266,10 +283,6 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
     // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
-            // Exclude the target of the rust_lib
-            if target.name == "libaxlibc"{
-                continue;
-            }
             let mut src_file_names = TargetConfig::get_src_names(&target.src);
             src_file_names.sort();
             if src_file_names.len() == 0 {
@@ -381,6 +394,7 @@ impl Package {
             ar: String::new(),
             ld: String::new(),
             packages: Vec::new(),
+            features: Vec::new(),
             os: String::new(),
         };
         let mut target_configs = Vec::new();
