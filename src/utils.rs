@@ -75,6 +75,7 @@ pub struct BuildConfig {
     pub compiler: String,
     pub ar: String,
     pub ld: String,
+    pub os: String,
     pub packages: Vec<String>,
 }
 
@@ -140,13 +141,15 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
         std::process::exit(1);
     });
 
+    // Parse [build]
+    let build = config["build"].as_table().unwrap_or_else(|| {
+        log(LogLevel::Error, "Could not find build in config file");
+        std::process::exit(1);
+    });
+    // Parse pkgs (optional)
     let mut pkgs: Vec<String> = Vec::new();
     let empty_value = Value::Array(Vec::new());
-    // Pkgs is optional
-    let pkgs_toml = config["build"].as_table().unwrap_or_else(|| {
-            log(LogLevel::Error, "Could not find build in config file");
-            std::process::exit(1);})
-        .get("packages").unwrap_or_else(|| &empty_value)
+    let pkgs_toml = build.get("packages").unwrap_or_else(|| &empty_value)
         .as_array()
         .unwrap_or_else(|| {
             log(LogLevel::Error, "packages is not an array");
@@ -158,33 +161,34 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
             std::process::exit(1);
         }).to_string());
     }
-
-    let compiler= config["build"]["compiler"].as_str().unwrap_or_else(|| {
+    // Parse compiler
+    let compiler= build.get("compiler").unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find compiler in config file");
         std::process::exit(1);
-    }).to_string();
-    //? Consider add Ar and ld for optional
-    let ar = if let Some(ar_value) = config["build"].as_table().and_then(|val| val.get("ar")) {
-        ar_value.as_str().unwrap_or_else(|| {
-            log(LogLevel::Error, "ar is not a string");
-            std::process::exit(1);
-        }).to_string()
-    } else {
-        compiler.clone()
-    };
-    let ld = if let Some(ld_value) = config["build"].as_table().and_then(|val| val.get("ld")) {
-        ld_value.as_str().unwrap_or_else(|| {
-            log(LogLevel::Error, "ar is not a string");
-            std::process::exit(1);
-        }).to_string()
-    } else {
-        compiler.clone()
-    };
-    // Parse the string into a struct
+    }).as_str().unwrap_or_else(|| {
+        log(LogLevel::Error, "compiler is not a string");
+        std::process::exit(1);
+        }).to_string();
+    // Parse optional
+    let empty_string = Value::String(String::new());
+    let ar = build.get("ar").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "ar is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let ld = build.get("ld").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "ld is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let os = build.get("os").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "os is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+
     let build_config = BuildConfig {
         compiler,
         ar,
         ld,
+        os,
         packages:pkgs,
     };
 
@@ -377,6 +381,7 @@ impl Package {
             ar: String::new(),
             ld: String::new(),
             packages: Vec::new(),
+            os: String::new(),
         };
         let mut target_configs = Vec::new();
 

@@ -224,57 +224,18 @@ r#"{{
         });
     }
     
+    // Construct os to libaxlibc.o;
+    if build_config.os == "rukos" {
+        log(LogLevel::Log, &format!("Compiling OS: {}", build_config.os));
+        build_os();
+    };
+
     // Construct each target separately.
     for target in targets {
-        // Construct rust_lib: libaxlibc.o
-        if target.name == "libaxlibc"{
-            if !Path::new(BUILD_DIR).exists() {
-                let cmd = format!("mkdir -p {}", BUILD_DIR);
-                let output = Command::new("sh")
-                .arg("-c")
-                .arg(cmd)
-                .output()
-                .expect("failed to execute process");
-                if !output.status.success() {
-                    log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
-                }
-            }
-            let arch = env::var("ARCH").unwrap_or_else(|_| "x86_64".to_string());
-            let platform_name = env::var("PLATFORM_NAME").unwrap_or_else(|_| "x86_64-qemu-q35".to_string());
-            let smp = env::var("SMP").unwrap_or_else(|_| "1".to_string());
-            let mode = env::var("MODE").unwrap_or_else(|_| "release".to_string());
-        
-            env::set_var("AX_ARCH", &arch);
-            env::set_var("AX_PLATFORM", &platform_name);
-            env::set_var("AX_SMP", &smp);
-            env::set_var("AX_MODE", &mode);
-            log(LogLevel::Info, "Building rukos's rust_lib...");
-            let mut cmd = String::new();
-            cmd.push_str("cargo build ");
-            cmd.push_str(&target.cflags);
-            log(LogLevel::Debug, &format!("Executing command: {}", cmd));
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(cmd)
-                .output()
-                .expect("Failed to execute command");
-            if !output.status.success() {
-                log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
-                std::process::exit(1);
-            }
-            // Copy libaxlibc.a to rukos_bld/bin/
-            // Consider changing the following strings to Static variable
-            let src_path = format!("{}/arceos/target/x86_64-unknown-none/release/libaxlibc.a", env!("HOME"));
-            let dest_path = format!("rukos_bld/bin/libaxlibc.a");
-            fs::copy(src_path, dest_path).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not copy libaxlibc.a to rukos_bld/bin/: {}", why));
-                std::process::exit(1);
-            });
-        }else{
-            let mut tgt = Target::new(build_config, &target, &targets, &packages);
-            tgt.build(gen_cc);
-        }
+        let mut tgt = Target::new(build_config, &target, &targets, &packages);
+        tgt.build(gen_cc);
     }
+
     if gen_cc {
         let mut cc_file = fs::OpenOptions::new()
             .write(true)
@@ -292,6 +253,49 @@ r#"{{
     }
     log(LogLevel::Info, "Build complete");
 }
+
+/// Builds the specified os
+fn build_os() {
+    if !Path::new(BUILD_DIR).exists() {
+        let cmd = format!("mkdir -p {}", BUILD_DIR);
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .output()
+            .expect("failed to execute process");
+        if !output.status.success() {
+            log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
+        }
+    }
+    let mut cmd = String::new();
+    cmd.push_str("cargo build");
+    cmd.push_str(" ");
+    //? add features
+    cmd.push_str("--target x86_64-unknown-none --target-dir /home/beichen/arceos/target --release -p axlibc");
+    cmd.push_str(" ");
+    cmd.push_str("--features \"axfeat/log-level-warn axfeat/bus-pci axfeat/paging axlibc/alloc\"");
+    log(LogLevel::Debug, &format!("Command: {}", cmd));
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("Failed to execute command");
+    if !output.status.success() {
+        log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
+        std::process::exit(1);
+    }
+    // Copy libaxlibc.a to rukos_bld/bin/
+    // Consider changing the following strings to Static variable
+    let src_path = format!("{}/arceos/target/x86_64-unknown-none/release/libaxlibc.a", env!("HOME"));
+    let dest_path = format!("rukos_bld/bin/libaxlibc.a");
+    fs::copy(src_path, dest_path).unwrap_or_else(|why| {
+        log(LogLevel::Error, &format!("Could not copy libaxlibc.a to rukos_bld/bin/: {}", why));
+        std::process::exit(1);
+    });
+} 
 
 /// Runs the exe target
 /// # Arguments
