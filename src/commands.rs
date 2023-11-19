@@ -1,6 +1,7 @@
 use crate::builder::Target;
-use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel};
+use crate::utils::{BuildConfig, TargetConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
+use crate::qemu;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -287,7 +288,6 @@ fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
         cmd.push_str(" ");
     }
     cmd.push_str("\"");
-    //cmd.push_str("\"axfeat/log-level-warn axfeat/bus-pci axfeat/paging axlibc/alloc\"");
     log(LogLevel::Debug, &format!("Command: {}", cmd));
     let output = Command::new("sh")
         .arg("-c")
@@ -317,26 +317,54 @@ fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
 /// * `exe_target` - The exe target to run
 /// * `targets` - A vector of targets
 /// * `packages` - A vector of packages
-pub fn run (bin_args: Option<Vec<&str>>, build_config: &BuildConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>, packages: &Vec<Package>) {
+pub fn run (bin_args: Option<Vec<&str>>, build_config: &BuildConfig, qemu_config: &QemuConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>, packages: &Vec<Package>) {
     let trgt = Target::new(build_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
     }
-    log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
-    let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
-    if bin_args.is_some() {
-        for arg in bin_args.unwrap() {
-            cmd.arg(arg);
+    if build_config.qemu_en == "enable" {
+        let qemu_args_final = qemu::config_qemu(qemu_config, &trgt);
+        run_qemu(qemu_args_final, &trgt);
+    } else {
+        log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
+        let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
+        if bin_args.is_some() {
+            for arg in bin_args.unwrap() {
+                cmd.arg(arg);
+            }
+        }
+        // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
+        cmd.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        let output = cmd.output();
+        if !output.is_err() {
+            log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
+        } else {
+            log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
+            std::process::exit(1);
         }
     }
-    // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
-    cmd.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
-    let output = cmd.output();
-    if !output.is_err() {
-        log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
-    } else {
-        log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
+}
+
+pub fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
+    log(LogLevel::Log, "Running on qemu...");
+    log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
+    let mut cmd = String::new();
+    for qemu_arg in qemu_args {
+        cmd.push_str(&qemu_arg);
+        cmd.push_str(" ");
+    }
+    log(LogLevel::Debug, &format!("Command: {}", cmd));
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("Failed to execute command");
+    if !output.status.success() {
+        log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
         std::process::exit(1);
     }
 }

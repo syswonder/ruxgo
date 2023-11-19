@@ -36,15 +36,16 @@ fn main() {
     }
 
     #[cfg(target_os = "linux")]
-    let (build_config, targets) = utils::parse_config("./config_linux.toml", true);
+    let (build_config, qemu_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
-    let (build_config, targets) = utils::parse_config("./config_win32.toml", true);
+    let (build_config, qemu_config, targets) = utils::parse_config("./config_win32.toml", true);
     #[cfg(target_os = "linux")]
     let packages = utils::Package::parse_packages("./config_linux.toml");
     #[cfg(target_os = "windows")]
     let packages = utils::Package::parse_packages("./config_win32.toml");
     //utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
     //utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", build_config));
+    //utils::log(utils::LogLevel::Debug, &format!("qemu_config: {:#?}", qemu_config));
 
     let mut num_exe = 0;
     let mut exe_target : Option<&utils::TargetConfig> = None;
@@ -162,7 +163,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 utils::log(utils::LogLevel::Log, "Running executable...");
-                commands::run(bin_args.clone(), &build_config, &exe_target.unwrap(), &targets, &packages);
+                commands::run(bin_args.clone(), &build_config, &qemu_config, &exe_target.unwrap(), &targets, &packages);
             }
         }
     }

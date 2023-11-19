@@ -67,7 +67,11 @@ impl<'a> Target<'a> {
         }
         #[cfg(target_os = "linux")]
         if target_config.typ == "exe" {
-            bin_path.push_str("");
+            if build_config.qemu_en == "enable" {
+                bin_path.push_str(".elf");
+            } else {
+                bin_path.push_str("");
+            }
         } else if target_config.typ == "dll" {
             bin_path.push_str(".so");
         } else if target_config.typ == "static" {   //? added static lib type
@@ -353,7 +357,6 @@ impl<'a> Target<'a> {
                 }
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.bin_path);
-                cmd.push_str(".elf");
             }else{
                 cmd.push_str(&self.build_config.compiler);
                 cmd.push_str(" -o ");

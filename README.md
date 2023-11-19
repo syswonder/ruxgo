@@ -18,6 +18,7 @@ Write a config_linux.toml for linux and a config_win32.toml for windows in the p
 * [x] Create new project
 * [x] Supported static libraries rust_lib
 * [x] Supported ar and ld commands as optional
+* [x] Supported the feature selection
 * [ ] Qemu cmd
 * [ ] Env cmd
 * [ ] Support different Arch

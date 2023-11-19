@@ -16,3 +16,5 @@ pub mod utils;
 pub mod hasher;
 /// Contains features related functions
 pub mod features;
+
+pub mod qemu;

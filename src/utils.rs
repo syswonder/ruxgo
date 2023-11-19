@@ -76,8 +76,22 @@ pub struct BuildConfig {
     pub ar: String,
     pub ld: String,
     pub os: String,
+    pub qemu_en: String,
     pub features: Vec<String>,
     pub packages: Vec<String>,
+}
+
+/// Struct descibing the qemu config of the local project
+#[derive(Debug)]
+pub struct QemuConfig {
+    pub blk: String,
+    pub net: String,
+    pub graphic: String,
+    pub bus: String,
+    pub disk_img: String,
+    pub qemu_log: String,
+    pub net_dump: String,
+    pub net_dev: String,
 }
 
 /// Struct describing the target config of the local project
@@ -125,7 +139,7 @@ impl TargetConfig {
 /// # Arguments
 /// * `path` - The path to the config file
 /// * `check_dup_src` - If true, the function will check for duplicately named source files
-pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<TargetConfig>) {
+pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig, Vec<TargetConfig>) {
     // open toml file and parse it into a string
     let mut file = File::open(path).unwrap_or_else(|_| {
         log(LogLevel::Error, &format!("Could not open config file: {}", path));
@@ -199,17 +213,38 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
                         log(LogLevel::Error, "os is not a string");
                         std::process::exit(1);
                     }).to_string();
+    let qemu_en = build.get("qemu_en").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "qemu_en is not a string");
+                        std::process::exit(1);
+                    }).to_string();
 
     let build_config = BuildConfig {
         compiler,
         ar,
         ld,
         os,
+        qemu_en,
         features,
         packages:pkgs,
     };
+    // Determine whether qemu enable
+    let qemu_config: QemuConfig;
+    if build_config.qemu_en == "enable"{
+        qemu_config = parse_qemu(&config);
+    } else {
+        qemu_config = QemuConfig {
+            blk: String::new(),
+            net: String::new(),
+            graphic: String::new(),
+            bus: String::new(),
+            disk_img: String::new(),
+            qemu_log: String::new(),
+            net_dump: String::new(),
+            net_dev: String::new(),
+        };
+    }
 
-    // Considering multiple targets
+    // Parse multiple targets
     let mut tgt = Vec::new();
     let targets = config["targets"].as_array().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find targets in config file");
@@ -300,7 +335,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, Vec<Target
         }
     }
 
-    (build_config, tgt)
+    (build_config, qemu_config, tgt)
 }
 
 /// Represents a package
@@ -396,12 +431,13 @@ impl Package {
             packages: Vec::new(),
             features: Vec::new(),
             os: String::new(),
+            qemu_en: String::new(),
         };
         let mut target_configs = Vec::new();
 
         // parse the root toml file
         // packages = ["Dr-42/Nomu_Engine, master"]
-        let (build_config_toml, _) = parse_config(path, false);
+        let (build_config_toml, _ , _) = parse_config(path, false);
         for package in build_config_toml.packages {
             let deets = package.split_whitespace().collect::<Vec<&str>>();
             if deets.len() != 2 {
@@ -444,7 +480,7 @@ impl Package {
             #[cfg(target_os = "windows")]
             let pkg_toml = format!("{}/config_win32.toml", source_dir).replace("//", "/");
 
-            let (pkg_bld_config_toml, pkg_targets_toml) = parse_config(&pkg_toml, false);
+            let (pkg_bld_config_toml, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
             if pkg_bld_config_toml.packages.len() > 0 {
@@ -510,4 +546,57 @@ impl Package {
         packages.dedup_by_key(|a| a.name.clone());
         packages
     }
+}
+
+/// Parse qemu config
+pub fn parse_qemu(config: &Table) -> QemuConfig {
+    let qemu = config["qemu"].as_table().unwrap_or_else(|| {
+        log(LogLevel::Error, "Could not find qemu in config file");
+        std::process::exit(1);
+    }); 
+    // Parse optional
+    let empty_string = Value::String(String::new());
+    let blk = qemu.get("blk").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "blk is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let net = qemu.get("net").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "net is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let graphic = qemu.get("graphic").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "graphic is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let bus = qemu.get("bus").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "bus is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let disk_img = qemu.get("disk_img").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "disk_img is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let qemu_log = qemu.get("qemu_log").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "qemu_log is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let net_dump = qemu.get("net_dump").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "net_dump is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let net_dev = qemu.get("net_dev").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
+                        log(LogLevel::Error, "net_dev is not a string");
+                        std::process::exit(1);
+                    }).to_string();
+    let qemu_config = QemuConfig {
+        blk,
+        net,
+        graphic,
+        bus,
+        disk_img,
+        qemu_log,
+        net_dump,
+        net_dev,
+    };
+    qemu_config
 }
