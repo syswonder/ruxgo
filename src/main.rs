@@ -44,8 +44,8 @@ fn main() {
     #[cfg(target_os = "windows")]
     let packages = utils::Package::parse_packages("./config_win32.toml");
     //utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
-    //utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", build_config));
-    //utils::log(utils::LogLevel::Debug, &format!("qemu_config: {:#?}", qemu_config));
+    utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", build_config));
+    utils::log(utils::LogLevel::Debug, &format!("qemu_config: {:#?}", qemu_config));
 
     let mut num_exe = 0;
     let mut exe_target : Option<&utils::TargetConfig> = None;

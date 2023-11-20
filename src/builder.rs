@@ -26,6 +26,7 @@ pub struct Target<'a> {
     target_config: &'a TargetConfig,
     dependant_includes: HashMap<String, Vec<String>>,
     pub bin_path: String,
+    pub elf_path: String,
     hash_file_path: String,
     path_hash: HashMap<String, String>,
     dependant_libs: Vec<Target<'a>>,
@@ -56,6 +57,7 @@ impl<'a> Target<'a> {
         bin_path.push_str(BUILD_DIR);
         bin_path.push_str("/");
         bin_path.push_str(&target_config.name);
+        let mut elf_path = String::new();
         #[cfg(target_os = "windows")]
         if target_config.typ == "exe" {
             bin_path.push_str(".exe");
@@ -68,13 +70,15 @@ impl<'a> Target<'a> {
         #[cfg(target_os = "linux")]
         if target_config.typ == "exe" {
             if build_config.qemu_en == "enable" {
-                bin_path.push_str(".elf");
+                elf_path = bin_path.clone();
+                bin_path.push_str(".bin");
+                elf_path.push_str(".elf");
             } else {
                 bin_path.push_str("");
             }
         } else if target_config.typ == "dll" {
             bin_path.push_str(".so");
-        } else if target_config.typ == "static" {   //? added static lib type
+        } else if target_config.typ == "static" {
             bin_path.push_str(".a");
         }
         #[cfg(target_os = "windows")]
@@ -84,10 +88,6 @@ impl<'a> Target<'a> {
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
-            // Exclude the target of the rust_lib
-            if *dependant_lib == "libaxlibc"{
-                continue;
-            }
             for target in targets {
                 if target.name == *dependant_lib {
                     dependant_libs.push(Target::new(build_config, target, targets, packages));
@@ -111,10 +111,9 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             } 
         }
-        let filtered_deps: Vec<_> = target_config.deps.iter().filter(|dep| **dep != "libaxlibc").collect();
-        if filtered_deps.len() > dependant_libs.len() + packages.len() {
+        if target_config.deps.len() > dependant_libs.len() + packages.len() {
             log(LogLevel::Error, "Dependant libs not found");
-            log(LogLevel::Error, &format!("Dependant libs: {:?}", filtered_deps));
+            log(LogLevel::Error, &format!("Dependant libs: {:?}", target_config.deps));
             log(LogLevel::Error, &format!("Found libs: {:?}", targets.iter().map(|x| {
                 if x.typ == "dll" {
                     x.name.clone()
@@ -130,6 +129,7 @@ impl<'a> Target<'a> {
             target_config,
             dependant_includes,
             bin_path,
+            elf_path,
             path_hash,
             hash_file_path,
             dependant_libs,
@@ -205,7 +205,7 @@ impl<'a> Target<'a> {
         // If the level is not "Info" or "Debug", update the compilation progress bar
         self.srcs.par_iter().for_each(|src| {
             let (to_build, _message) = src.to_build(&self.path_hash);
-            log(LogLevel::Debug, &format!("{} => {}", src.path, to_build));
+            //log(LogLevel::Debug, &format!("{} => {}", src.path, to_build));
             if to_build {
                 let warn = src.build(self.build_config, self.target_config, &self.dependant_libs);
                 if warn.is_some() {
@@ -272,6 +272,7 @@ impl<'a> Target<'a> {
             objs.push(&src.obj_name);
         }
         let mut cmd = String::new();
+        let mut cmd_bin = String::new();
         if self.target_config.typ == "dll" {
             cmd.push_str(&self.build_config.compiler);
             cmd.push_str(" -shared");
@@ -356,7 +357,13 @@ impl<'a> Target<'a> {
                     cmd.push_str(obj);
                 }
                 cmd.push_str(" -o ");
-                cmd.push_str(&self.bin_path);
+                cmd.push_str(&self.elf_path);
+                // Generate a .bin file
+                cmd_bin.push_str("rust-objcopy --binary-architecture=x86_64");
+                cmd_bin.push_str(" ");
+                cmd_bin.push_str(&self.elf_path);
+                cmd_bin.push_str(" --strip-all -O binary ");
+                cmd_bin.push_str(&self.bin_path);
             }else{
                 cmd.push_str(&self.build_config.compiler);
                 cmd.push_str(" -o ");
@@ -408,6 +415,22 @@ impl<'a> Target<'a> {
             .arg(&cmd)
             .output()
             .expect("failed to execute process");
+        if !cmd_bin.is_empty() {
+            let output_bin = Command::new("sh")
+                .arg("-c")
+                .arg(&cmd_bin)
+                .output()
+                .expect("failed to execute process");
+            if output_bin.status.success() {
+                log(LogLevel::Debug, &format!(" Bin_path: {}", &self.bin_path));
+                log(LogLevel::Debug, &format!(" Elf_path: {}", &self.elf_path));
+             } else {
+                log(LogLevel::Error, "  Rust-objcopy failed");
+                log(LogLevel::Error, &format!(" Command: {}", &cmd_bin));
+                log(LogLevel::Error, &format!("  Error: {}", String::from_utf8_lossy(&output_bin.stderr)));
+                std::process::exit(1);
+             }
+        }
         if output.status.success() {
             log(LogLevel::Info, "  Linking successful");
             hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);

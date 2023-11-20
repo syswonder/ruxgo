@@ -25,7 +25,7 @@ pub fn config_qemu<'a>(qemu_config: &QemuConfig, trgt: &Target) -> Vec<String> {
         .collect::<Vec<String>>();
     qemu_args_final.extend(qemu_args_init);
     // arch
-    let qemu_args_x86_64 = vec!["-machine","q35","-kernel",&trgt.bin_path]
+    let qemu_args_x86_64 = vec!["-machine","q35","-kernel",&trgt.elf_path]
         .iter()
         .map(|&arg| arg.to_string())
         .collect::<Vec<String>>();

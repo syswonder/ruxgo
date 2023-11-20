@@ -255,7 +255,7 @@ r#"{{
             std::process::exit(1);
         });
     }
-    log(LogLevel::Info, "Build complete");
+    log(LogLevel::Log, "Build complete!");
 }
 
 /// Builds the specified os
