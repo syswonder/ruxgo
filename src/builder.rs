@@ -13,11 +13,11 @@ use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
 
-static BUILD_DIR : &str = "rukos_bld/bin";
+static BUILD_DIR: &str = "rukos_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str  = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str  = "rukos_bld/obj_linux";
+static OBJ_DIR: &str = "rukos_bld/obj_linux";
 
 /// Represents a target
 pub struct Target<'a> {
@@ -50,7 +50,12 @@ impl<'a> Target<'a> {
     /// * `target_config` - Target config
     /// * `targets` - All targets
     /// * `packages` - All packages
-    pub fn new(build_config: &'a BuildConfig, target_config: &'a TargetConfig, targets: &'a Vec<TargetConfig>, packages: &'a Vec<Package>) -> Self {
+    pub fn new(
+        build_config: &'a BuildConfig, 
+        target_config: &'a TargetConfig, 
+        targets: &'a Vec<TargetConfig>, 
+        packages: &'a Vec<Package>
+    ) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
         let mut bin_path = String::new();
@@ -158,8 +163,8 @@ impl<'a> Target<'a> {
                 }
             }
         }
-        let mut to_link : bool = false;
-        let mut link_causer : Vec<&str> = Vec::new();  // Trace the linked source files
+        let mut to_link: bool = false;
+        let mut link_causer: Vec<&str> = Vec::new();  // Trace the linked source files
         let mut srcs_needed = 0;   // add progress bar
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
@@ -214,7 +219,7 @@ impl<'a> Target<'a> {
                 src_hash_to_update.lock().unwrap().push(src);
                 log(LogLevel::Info, &format!("Compiled: {}", src.path));
                 let log_level = std::env::var("RUKOS_LOG_LEVEL").unwrap_or("".to_string());
-                if !(log_level == "Info" || log_level == "Debug"){
+                if !(log_level == "Info" || log_level == "Debug") {
                     let mut num_complete = num_complete.lock().unwrap();
                     *num_complete += 1;
                     let progress_bar = progress_bar.lock().unwrap();
@@ -260,10 +265,10 @@ impl<'a> Target<'a> {
         if !Path::new(BUILD_DIR).exists() {
             let cmd = format!("mkdir -p {}", BUILD_DIR);
             let output = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .expect("failed to execute process");
+                .arg("-c")
+                .arg(cmd)
+                .output()
+                .expect("failed to execute process");
             if !output.status.success() {
                 log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
             }
@@ -449,7 +454,7 @@ impl<'a> Target<'a> {
         cc.push_str("{\n");  // Json start
         if self.build_config.compiler == "clang++" || self.build_config.compiler == "g++" {
             cc.push_str("\t\"command\": \"c++");
-        } else if self.build_config.compiler == "clang" || self.build_config.compiler == "gcc"{
+        } else if self.build_config.compiler == "clang" || self.build_config.compiler == "gcc" {
             cc.push_str("\t\"command\": \"cc");
         } else {
             log(LogLevel::Error, &format!("Compiler: {} is not supported", &self.build_config.compiler));
@@ -475,9 +480,7 @@ impl<'a> Target<'a> {
         cc.push_str(" ");
         let cflags = &self.target_config.cflags;
         //Extract the -I mentions
-        let include_mentions = cflags
-            .split_whitespace()
-            .filter(|s| s.starts_with("-I"));
+        let include_mentions = cflags.split_whitespace().filter(|s| s.starts_with("-I"));
         for include_mention in include_mentions {
             cc.push_str(include_mention);
             cc.push_str(" ");
@@ -535,7 +538,7 @@ impl<'a> Target<'a> {
     /// Recursively gets all the source files in the given root path
     fn get_srcs(&mut self, root_path: &str, target_config: &'a TargetConfig) -> Vec<Src> {
         let root_dir = PathBuf::from(root_path);
-        let mut srcs : Vec<Src> = Vec::new();
+        let mut srcs: Vec<Src> = Vec::new();
         let root_entries = std::fs::read_dir(root_dir).unwrap_or_else(|_| {
             log(LogLevel::Error, &format!("Could not read directory: {}", root_path));
             std::process::exit(1);
@@ -546,7 +549,9 @@ impl<'a> Target<'a> {
                 let path = entry.path().to_str().unwrap().to_string();
                 srcs.append(&mut self.get_srcs(&path, target_config));
             } else {
-                if !entry.path().to_str().unwrap().ends_with(".cpp") && !entry.path().to_str().unwrap().ends_with(".c") {
+                if !entry.path().to_str().unwrap().ends_with(".cpp") 
+                    && !entry.path().to_str().unwrap().ends_with(".c") 
+                {
                     continue;
                 }
                 let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
@@ -561,9 +566,7 @@ impl<'a> Target<'a> {
     fn add_src(&mut self, path: String) {
         let name = Target::get_src_name(&path);
         let obj_name = self.get_src_obj_name(&name);
-        //log(LogLevel::Info, &format!("Added source file: {}", &name));
         let dependant_includes=self.get_dependant_includes(&path);
-        //log(LogLevel::Info, &format!("  Dependant includes: {:?}", &dependant_includes));
         let bin_path = self.bin_path.clone();
         self.srcs.push(Src::new(path, name, obj_name, bin_path, dependant_includes));
     }
@@ -592,6 +595,7 @@ impl<'a> Target<'a> {
         let mut result = Vec::new();
         let include_substrings = self.get_include_substrings(path).unwrap_or_else(|| {
             log(LogLevel::Error, &format!("Failed to get include substrings for file: {}", path));
+            log(LogLevel::Error, &format!("File included from: {:?}", self.dependant_includes.get(path)));
             std::process::exit(1);
         });
         if include_substrings.len() == 0 {
@@ -634,7 +638,13 @@ impl<'a> Target<'a> {
 }
 
 impl Src {
-    fn new(path: String, name: String, obj_name: String, bin_path: String, dependant_includes: Vec<String>) -> Self {
+    fn new(
+        path: String, 
+        name: String, 
+        obj_name: String, 
+        bin_path: String, 
+        dependant_includes: Vec<String>
+    ) -> Self {
         Self {
             path,
             name,
@@ -652,7 +662,7 @@ impl Src {
         }
 
         if hasher::is_file_changed(&self.path, &path_hash) {
-            let result =  (true, format!("\tSource file has changed: {}", &self.path));
+            let result = (true, format!("\tSource file has changed: {}", &self.path));
             return result;
         }
         for dependant_include in &self.dependant_includes {
@@ -666,7 +676,12 @@ impl Src {
     }
     
     /// Build the source files
-    fn build(&self, build_config: &BuildConfig, target_config: &TargetConfig, dependant_libs: &Vec<Target>) -> Option<String> {
+    fn build(
+        &self, 
+        build_config: &BuildConfig, 
+        target_config: &TargetConfig, 
+        dependant_libs: &Vec<Target>
+    ) -> Option<String> {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
         cmd.push_str(" ");
@@ -677,17 +692,18 @@ impl Src {
         cmd.push_str(" -o ");
         cmd.push_str(&self.obj_name);
 
-        //? consider some includes in other depandant_libs?
+        //? consider some includes in other depandant_libs
         for dependant_lib in dependant_libs {
             cmd.push_str(" -I");
             cmd.push_str(dependant_lib.target_config.include_dir.as_str());
             cmd.push_str(" ");
         }
-        //? consider some includes in other packages?
+        //? consider some includes in other packages
         if build_config.packages.len() > 0 {
             for package in &build_config.packages {
                 cmd.push_str("-I");
-                cmd.push_str(&format!("rukos_bld/includes/{} ", &package.split_whitespace().into_iter().next().unwrap().split('/').last().unwrap().replace(",", "")));
+                cmd.push_str(&format!("rukos_bld/includes/{} ", 
+                    &package.split_whitespace().into_iter().next().unwrap().split('/').last().unwrap().replace(",", "")));
                 cmd.push_str(" ");
             }
         }

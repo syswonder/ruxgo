@@ -8,11 +8,11 @@ use std::fs;
 use std::process::{Command, Stdio};
 use std::env;
 
-static BUILD_DIR : &str = "rukos_bld/bin";
+static BUILD_DIR: &str = "rukos_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str  = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str  = "rukos_bld/obj_linux";
+static OBJ_DIR: &str = "rukos_bld/obj_linux";
 
 /// Cleans the local targets
 /// # Arguments
@@ -78,9 +78,9 @@ pub fn clean_packages(packages: &Vec<Package>) {
     for pack in packages {
         for target in &pack.target_configs {
             #[cfg(target_os = "windows")]
-            let pack_bin_path = format!("{}/{}.dll",BUILD_DIR, &target.name);
+            let pack_bin_path = format!("{}/{}.dll", BUILD_DIR, &target.name);
             #[cfg(target_os = "linux")]
-            let pack_bin_path = format!("{}/{}.so",BUILD_DIR, &target.name);
+            let pack_bin_path = format!("{}/{}.so", BUILD_DIR, &target.name);
 
             if !Path::new(&pack_bin_path).exists() {
                 log(LogLevel::Log, &format!("Package binary does not exist: {}", &pack_bin_path));
@@ -108,7 +108,13 @@ pub fn clean_packages(packages: &Vec<Package>) {
 /// * `targets` - A vector of targets to build
 /// * `gen_cc` - Whether to generate a compile_commands.json file
 /// * `gen_vsc` - Whether to generate a .vscode/c_cpp_properties.json file
-pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bool, gen_vsc: bool, packages: &Vec<Package>) {
+pub fn build(
+    build_config: &BuildConfig, 
+    targets: &Vec<TargetConfig>, 
+    gen_cc: bool, 
+    gen_vsc: bool, 
+    packages: &Vec<Package>
+) {
     if !Path::new("rukos_bld").exists() {
         fs::create_dir("rukos_bld").unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not create rukos_bld directory: {}", why));
@@ -140,8 +146,13 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
                 std::process::exit(1);
             });
 
-        let inc_dirs : Vec<String> = targets.iter().map(|t| t.include_dir.clone()).collect();
-        let compiler_path : String = build_config.compiler.clone();
+        let mut inc_dirs: Vec<String> = targets.iter().map(|t| t.include_dir.clone()).collect();
+        for package in packages {
+            for target in &package.target_configs {
+                inc_dirs.push(target.include_dir.clone());
+            }
+        }
+        let compiler_path: String = build_config.compiler.clone();
 
         #[cfg(target_os = "windows")]
         let compiler_path = Command::new("sh")
@@ -153,13 +164,16 @@ pub fn build(build_config: &BuildConfig, targets: &Vec<TargetConfig>, gen_cc: bo
 
         #[cfg(target_os = "windows")]
         //Pick the first compiler path
-        let compiler_path = String::from_utf8(compiler_path).unwrap()
-            .split("\n").collect::<Vec<&str>>()[0].to_string()
+        let compiler_path = String::from_utf8(compiler_path)
+            .unwrap()
+            .split("\n")
+            .collect::<Vec<&str>>()[0]
+            .to_string()
             .replace("\r", "")
             .replace("\\", "/");
         #[cfg(target_os = "windows")]
         let vsc_json = format!(
-r#"{{
+            r#"{{
     "configurations": [
         {{
             "name": "Win32",
@@ -195,7 +209,7 @@ r#"{{
 
         #[cfg(target_os = "linux")]
         let vsc_json = format!(
-r#"{{
+            r#"{{
     "configurations": [
         {{
             "name": "Linux",
@@ -317,7 +331,14 @@ fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
 /// * `exe_target` - The exe target to run
 /// * `targets` - A vector of targets
 /// * `packages` - A vector of packages
-pub fn run (bin_args: Option<Vec<&str>>, build_config: &BuildConfig, qemu_config: &QemuConfig, exe_target: &TargetConfig, targets: &Vec<TargetConfig>, packages: &Vec<Package>) {
+pub fn run (
+    bin_args: Option<Vec<&str>>, 
+    build_config: &BuildConfig, 
+    qemu_config: &QemuConfig, 
+    exe_target: &TargetConfig, 
+    targets: &Vec<TargetConfig>, 
+    packages: &Vec<Package>
+) {
     let trgt = Target::new(build_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
@@ -335,7 +356,9 @@ pub fn run (bin_args: Option<Vec<&str>>, build_config: &BuildConfig, qemu_config
             }
         }
         // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
-        cmd.stdin(Stdio::inherit()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        cmd.stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
         let output = cmd.output();
         if !output.is_err() {
             log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
