@@ -1,19 +1,10 @@
-use rukoskit::{utils, commands};
+use rukoskit::{utils, commands, environment};
 use std::env;
 use std::path::Path;
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let arch = env::var("ARCH").unwrap_or_else(|_| "x86_64".to_string());
-    let platform_name = env::var("PLATFORM_NAME").unwrap_or_else(|_| "x86_64-qemu-q35".to_string());
-    let smp = env::var("SMP").unwrap_or_else(|_| "1".to_string());
-    let mode = env::var("MODE").unwrap_or_else(|_| "release".to_string());
-
-    env::set_var("AX_ARCH", &arch);
-    env::set_var("AX_PLATFORM", &platform_name);
-    env::set_var("AX_SMP", &smp);
-    env::set_var("AX_MODE", &mode);
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
         print_help();
@@ -47,6 +38,9 @@ fn main() {
     utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", build_config));
     utils::log(utils::LogLevel::Debug, &format!("qemu_config: {:#?}", qemu_config));
 
+    // Configure env
+    environment::config_env();
+    
     let mut num_exe = 0;
     let mut exe_target : Option<&utils::TargetConfig> = None;
     if targets.len() == 0 {

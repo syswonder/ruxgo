@@ -1,7 +1,7 @@
 use crate::utils::{QemuConfig, log, LogLevel};
 use crate::builder::Target;
 
-pub fn config_qemu<'a>(qemu_config: &QemuConfig, trgt: &Target) -> Vec<String> {
+pub fn config_qemu(qemu_config: &QemuConfig, trgt: &Target) -> Vec<String> {
     //let qemu = format!("qemu-system-{}", ARCH);
     // vdev_suffix
     let vdev_suffix = if qemu_config.bus == "mmio" {
