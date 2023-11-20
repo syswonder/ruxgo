@@ -5,9 +5,9 @@ use toml::{Table, Value};
 use colored::Colorize;
 
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str  = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str  = "rukos_bld/obj_linux";
+static OBJ_DIR: &str = "rukos_bld/obj_linux";
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -302,19 +302,20 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig
     }
 
     // Sort and remove duplicate targets
-    // if tgt.len() == 0 {
-    //     log(LogLevel::Error, "No targets found");
-    //     std::process::exit(1);
-    // }
-    // let original_len = tgt.len();
-    // tgt.sort_by_key(|t| t.name.clone());
-    // tgt.dedup_by_key(|t| t.name.clone());
-    // let dedup_len = tgt.len();
-    // if original_len != dedup_len {
-    //     log(LogLevel::Error, "Duplicate targets found");
-    //     log(LogLevel::Error, "Target names must be unique");
-    //     std::process::exit(1);
-    // }
+    if tgt.len() == 0 {
+        log(LogLevel::Error, "No targets found");
+        std::process::exit(1);
+    }
+
+    //Check for duplicate target names
+    for i in 0..tgt.len() - 1 {
+        for j in i + 1..tgt.len() {
+            if tgt[i].name == tgt[j].name {
+                log(LogLevel::Error, &format!("Duplicate target names found: {}", tgt[i].name));
+                std::process::exit(1);
+            }
+        }
+    }
     // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
