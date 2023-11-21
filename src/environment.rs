@@ -1,4 +1,4 @@
-use crate::utils;
+//use crate::utils;
 
 pub fn config_env() {
     //? Configure environment variables according to the toml file
@@ -9,7 +9,7 @@ pub fn config_env() {
     let log = "warn".to_string();
     let target = "x86_64-unknown-none".to_string();
 
-    utils::log(utils::LogLevel::Debug, "Configure environment variables");
+    //utils::log(utils::LogLevel::Debug, "Configure environment variables");
     std::env::set_var("AX_ARCH", arch);
     std::env::set_var("AX_PLATFORM", platform_name);
     std::env::set_var("AX_SMP", smp);

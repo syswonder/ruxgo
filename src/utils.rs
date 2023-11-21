@@ -102,7 +102,7 @@ pub struct TargetConfig {
     pub include_dir: String,
     pub typ: String,
     pub cflags: String,
-    pub libs: String,
+    pub ldflags: String,
     pub deps: Vec<String>,
 }
 
@@ -288,8 +288,8 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig
                 log(LogLevel::Error, "Could not find cflags in config file");
                 std::process::exit(1);
             }).to_string(),
-            libs: target["libs"].as_str().unwrap_or_else(|| {
-                log(LogLevel::Error, "Could not find libs in config file");
+            ldflags: target["ldflags"].as_str().unwrap_or_else(|| {
+                log(LogLevel::Error, "Could not find ldflags in config file");
                 std::process::exit(1);
             }).to_string(),
             deps,

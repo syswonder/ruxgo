@@ -1,5 +1,6 @@
 //! This module contains the build related functions
 
+use crate::features::cfg_feat;
 use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
@@ -322,11 +323,11 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
             }
             cmd.push_str(" ");
-            cmd.push_str(&self.target_config.libs);
+            cmd.push_str(&self.target_config.ldflags);
         } else if self.target_config.typ == "static" {
             cmd.push_str(&self.build_config.ar);  // Use ar to archive target files
             cmd.push_str(" ");
-            cmd.push_str(&self.target_config.libs); //? Consider to add ar flags or other static libs 
+            cmd.push_str(&self.target_config.ldflags); //? Consider to add ar flags or other static libs 
             cmd.push_str(" ");
             cmd.push_str(&self.bin_path);
             for obj in objs {
@@ -337,7 +338,7 @@ impl<'a> Target<'a> {
             if self.build_config.os.contains("rukos"){
                 cmd.push_str(&self.build_config.ld);
                 cmd.push_str(" ");
-                cmd.push_str(&self.target_config.libs);
+                cmd.push_str(&self.target_config.ldflags);
 
                 // link other dependant libraries
                 for dep_target in dep_targets {
@@ -683,7 +684,16 @@ impl Src {
         dependant_libs: &Vec<Target>
     ) -> Option<String> {
         let mut cmd = String::new();
+        let (_, lib_feats) = cfg_feat(build_config);
         cmd.push_str(&build_config.compiler);
+        cmd.push_str(" ");
+        // Generate the preprocessing macro definition
+        for lib_feat in lib_feats {
+            let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
+            cmd.push_str(" -DAX_CONFIG_");
+            cmd.push_str(&processed_lib_feat);
+        }
+        cmd.push_str(" -DAX_CONFIG_WARN");
         cmd.push_str(" ");
         cmd.push_str(&target_config.cflags);
         cmd.push_str(" -I");

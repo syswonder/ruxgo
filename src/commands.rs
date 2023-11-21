@@ -251,11 +251,11 @@ pub fn build(
     }
     
     // Get features
-    let (ax_feats_final, lib_feats) = features::get_features(&build_config);
+    let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(&build_config);
     // Construct os to libaxlibc.o;
     if build_config.os == "rukos" {
         log(LogLevel::Log, &format!("Compiling OS: {}", build_config.os));
-        build_os(&ax_feats_final, &lib_feats);
+        build_os(&ax_feats_final, &lib_feats_final);
     };
 
     // Construct each target separately.
