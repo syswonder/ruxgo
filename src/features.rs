@@ -1,7 +1,7 @@
 use crate::utils::{BuildConfig, log, LogLevel};
 
 pub fn cfg_feat(build_config: &BuildConfig) -> (Vec<String>, Vec<String>) {
-    log(LogLevel::Info, "Getting features...");
+    //log(LogLevel::Info, "Getting features...");
     let lib_features = vec!["fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "epoll"];
     let mut features= build_config.features.clone();
     if features.iter().any(|feat| {
@@ -13,8 +13,9 @@ pub fn cfg_feat(build_config: &BuildConfig) -> (Vec<String>, Vec<String>) {
     let mut ax_feats = Vec::new();
     let mut lib_feats = Vec::new();
     //? Determine LOG and pci (Add environment variables later)
-    ax_feats.push("log-level-warn".to_string());
+    ax_feats.push("log-level-error".to_string());
     ax_feats.push("bus-pci".to_string());
+    lib_feats.push("smp".to_string());
     // get content of features
     for feat in features {
         if !lib_features.contains(&feat.as_str()) {

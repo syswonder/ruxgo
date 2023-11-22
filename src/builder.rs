@@ -8,6 +8,7 @@ use std::fs;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::process::Command;
+use std::collections::HashSet;
 use crate::hasher;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -40,7 +41,7 @@ struct Src {
     path: String,
     name: String,
     obj_name: String,
-    bin_path: String,
+    bin_path: String,  // consider change to obj_path
     dependant_includes: Vec<String>,
 }
 
@@ -101,7 +102,6 @@ impl<'a> Target<'a> {
             }
         }
         for dep_lib in &dependant_libs {
-            //? consider add static libs
             if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" {
                 log(LogLevel::Error, "Can add only dlls or static libraries as dependant libs");
                 log(LogLevel::Error, &format!("Target: {} is not a dll or static library", dep_lib.target_config.name));
@@ -585,21 +585,25 @@ impl<'a> Target<'a> {
         let mut obj_name = String::new();
         obj_name.push_str(OBJ_DIR);
         obj_name.push_str("/");
-        //obj_name.push_str(&self.target_config.name); //? consider eliminate
+        obj_name.push_str(&self.target_config.name);
         obj_name.push_str(&src_name);
         obj_name.push_str(".o");
         obj_name
     }
 
-    /// Returns a vector of .h or .hpp files the given C/C++ depends on
+    /// Returns a vector of .h or .hpp files the given C/C++ depends on (local)
+    // For example, if A contains B and B contains A, 
+    // the code recursively processes A and B repeatedly, resulting in an endless loop
     fn get_dependant_includes(&mut self, path: &str) -> Vec<String> {
         let mut result = Vec::new();
+        // HashSet is used to record processed file paths
+        let mut processed_paths = HashSet::new(); 
         let include_substrings = self.get_include_substrings(path).unwrap_or_else(|| {
             log(LogLevel::Error, &format!("Failed to get include substrings for file: {}", path));
             log(LogLevel::Error, &format!("File included from: {:?}", self.dependant_includes.get(path)));
             std::process::exit(1);
         });
-        if include_substrings.len() == 0 {
+        if include_substrings.is_empty() {
             return result;
         }
         for include_substring in include_substrings {
@@ -607,16 +611,17 @@ impl<'a> Target<'a> {
             if self.dependant_includes.contains_key(&dep_path) {  //? seem to have some trouble
                 continue;
             }
-            result.append(&mut self.get_dependant_includes(&dep_path));
-            result.push(dep_path);
-
+            processed_paths.insert(dep_path.clone());
+            result.append(&mut self.get_dependant_includes(&dep_path)); // append recursive includes
+            result.push(dep_path);                                      // append current includes
             self.dependant_includes.insert(include_substring, result.clone()); 
         }
-        let result = result.into_iter().unique().collect();
-        result
+        //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
+        result.into_iter().unique().collect()
+
     }
 
-    /// Gets a list of substrings that contain "#include \"" in the source file 
+    /// Returns a list of substrings that contain "#include \"" in the source file 
     fn get_include_substrings(&self, path: &str) -> Option<Vec<String>> {
         let file = std::fs::File::open(path);
         if file.is_err() {
@@ -626,11 +631,11 @@ impl<'a> Target<'a> {
         let mut buf = String::new();
         file.read_to_string(&mut buf).unwrap();
 
-        let mut lines = buf.lines();
+        let lines = buf.lines();
         let mut include_substrings = Vec::new();
-        while let Some(line) = lines.next() {
-            if line.starts_with("#include \"") {  //? consider add "#include \<"
-                let include_path = line.split("\"").nth(1).unwrap().to_owned();
+        for line in lines {
+            if line.starts_with("#include \"") {
+                let include_path = line.split('\"').nth(1).unwrap().to_owned();
                 include_substrings.push(include_path);
             }
         }
@@ -639,6 +644,7 @@ impl<'a> Target<'a> {
 }
 
 impl Src {
+    // Creates a new source file
     fn new(
         path: String, 
         name: String, 
@@ -676,7 +682,7 @@ impl Src {
         result
     }
     
-    /// Build the source files
+    /// Builds the source files
     fn build(
         &self, 
         build_config: &BuildConfig, 
@@ -720,6 +726,8 @@ impl Src {
 
         cmd.push_str(" -c ");
         cmd.push_str(&self.path);
+
+        //? consider add static general options
         if target_config.typ == "dll" {
             cmd.push_str(" -fPIC");  // fPIC is position-independent code and used in dynamic link scenarios
         }
