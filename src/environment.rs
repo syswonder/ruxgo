@@ -28,11 +28,6 @@ pub fn config_env(platform_cfg: &PlatformConfig) {
         } else {
             "warn".to_string()
         };
-    let log = if !platform_cfg.log.is_empty() {
-            platform_cfg.v.clone()
-        } else {
-            "".to_string()
-        };
     let target = match &arch[..] {
         "x86_64" => "x86_64-unknown-none".to_string(),
         "riscv64" => "riscv64gc-unknown-none-elf".to_string(),

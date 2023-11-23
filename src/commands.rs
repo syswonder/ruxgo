@@ -257,7 +257,7 @@ pub fn build(
     // Construct os to libaxlibc.o;
     if os_config != &OSConfig::default() {
         log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-        build_os(&ax_feats_final, &lib_feats_final);
+        build_os(&platform_config, &ax_feats_final, &lib_feats_final);
     };
 
     // Construct each target separately.
@@ -285,7 +285,7 @@ pub fn build(
 }
 
 /// Builds the specified os
-fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
+fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
     if !Path::new(BUILD_DIR).exists() {
         let cmd = format!("mkdir -p {}", BUILD_DIR);
         let output = Command::new("sh")
@@ -300,10 +300,20 @@ fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
     let mut cmd = String::new();
     cmd.push_str("cargo build");
     cmd.push_str(" ");
-    cmd.push_str("--target x86_64-unknown-none --target-dir /home/beichen/arceos/target --release -p axlibc");
+    if let Ok(target) = std::env::var("AX_TARGET") {
+        cmd.push_str(format!("--target {}", target).as_str());
+    }
+    cmd.push_str(format!(" --target-dir /home/beichen/arceos/target --{} -p axlibc", platform_config.mode).as_str());
+    // add verbose
+    let verbose = match platform_config.v.as_str() {
+        "1" => "-v",
+        "2" => "-vv",
+        _ => "",
+    };
     cmd.push_str(" ");
-    //? add features
-    cmd.push_str("--features ");
+    cmd.push_str(verbose);
+    // add features
+    cmd.push_str(" --features ");
     cmd.push_str("\"");
     for ax_feat in ax_feats {
         cmd.push_str(ax_feat);
