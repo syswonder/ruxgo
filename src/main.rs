@@ -1,6 +1,7 @@
 use rukoskit::{utils, commands, environment};
 use std::env;
 use std::path::Path;
+use crate::utils::PlatformConfig;
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -27,20 +28,23 @@ fn main() {
     }
 
     #[cfg(target_os = "linux")]
-    let (build_config, qemu_config, targets) = utils::parse_config("./config_linux.toml", true);
+    let (build_config, os_config, platform_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
-    let (build_config, qemu_config, targets) = utils::parse_config("./config_win32.toml", true);
+    let (build_config, os_config, platform_config, targets) = utils::parse_config("./config_win32.toml", true);
     #[cfg(target_os = "linux")]
     let packages = utils::Package::parse_packages("./config_linux.toml");
     #[cfg(target_os = "windows")]
     let packages = utils::Package::parse_packages("./config_win32.toml");
-    //utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
-    //utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", build_config));
-    //utils::log(utils::LogLevel::Debug, &format!("qemu_config: {:#?}", qemu_config));
+    // utils::log(utils::LogLevel::Debug, &format!("Packages: {:#?}", packages));
+    utils::log(utils::LogLevel::Debug, &format!("build_config: {:#?}", &build_config));
+    utils::log(utils::LogLevel::Debug, &format!("os_config: {:#?}", &os_config));
+    utils::log(utils::LogLevel::Debug, &format!("platform_config: {:#?}", &platform_config));
 
     // Configure env
-    environment::config_env();
-    
+    if platform_config != PlatformConfig::default() {
+        environment::config_env(&platform_config);
+    } 
+
     let mut num_exe = 0;
     let mut exe_target : Option<&utils::TargetConfig> = None;
     if targets.len() == 0 {
@@ -147,7 +151,7 @@ fn main() {
             }
             if arg.contains('b') {
                 utils::log(utils::LogLevel::Log, "Building project...");
-                commands::build(&build_config, &targets, gen_cc, gen_vsc, &packages);
+                commands::build(&build_config, &targets, &os_config, &platform_config, gen_cc, gen_vsc, &packages);
                 valid_arg = true;
             }
             if arg.contains('r') {
@@ -157,7 +161,7 @@ fn main() {
                     std::process::exit(1);
                 }
                 utils::log(utils::LogLevel::Log, "Running executable...");
-                commands::run(bin_args.clone(), &build_config, &qemu_config, &exe_target.unwrap(), &targets, &packages);
+                commands::run(bin_args.clone(), &build_config, &os_config, &platform_config, &exe_target.unwrap(), &targets, &packages);
             }
         }
     }

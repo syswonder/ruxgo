@@ -3,6 +3,7 @@
 use std::{fs::File, io::Read, path::Path, process::Command};
 use toml::{Table, Value};
 use colored::Colorize;
+use std::default::Default;
 
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
@@ -75,14 +76,29 @@ pub struct BuildConfig {
     pub compiler: String,
     pub ar: String,
     pub ld: String,
-    pub os: String,
-    pub qemu_en: String,
-    pub features: Vec<String>,
     pub packages: Vec<String>,
 }
 
+/// Struct descibing the OS config of the local project
+#[derive(Debug, Default, PartialEq)]
+pub struct OSConfig {
+    pub name: String,
+    pub features: Vec<String>,
+}
+
+/// Struct descibing the platform config of the local project
+#[derive(Debug, Default, PartialEq)]
+pub struct PlatformConfig {
+    pub name: String,
+    pub smp: String,
+    pub mode: String,
+    pub log: String,
+    pub v: String,
+    pub qemu: QemuConfig,
+}
+
 /// Struct descibing the qemu config of the local project
-#[derive(Debug)]
+#[derive(Debug, Default, PartialEq)]
 pub struct QemuConfig {
     pub blk: String,
     pub net: String,
@@ -139,7 +155,7 @@ impl TargetConfig {
 /// # Arguments
 /// * `path` - The path to the config file
 /// * `check_dup_src` - If true, the function will check for duplicately named source files
-pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig, Vec<TargetConfig>) {
+pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, PlatformConfig, Vec<TargetConfig>) {
     // open toml file and parse it into a string
     let mut file = File::open(path).unwrap_or_else(|_| {
         log(LogLevel::Error, &format!("Could not open config file: {}", path));
@@ -156,41 +172,13 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig
         std::process::exit(1);
     });
 
-    // Parse [build]
+    // Parse build
     let build = config["build"].as_table().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find build in config file");
         std::process::exit(1);
     });
     // Parse pkgs
-    let mut pkgs: Vec<String> = Vec::new();
-    let empty_pkgs = Value::Array(Vec::new());
-    let pkgs_toml = build.get("packages").unwrap_or_else(|| &empty_pkgs)
-        .as_array()
-        .unwrap_or_else(|| {
-            log(LogLevel::Error, "packages is not an array");
-            std::process::exit(1);
-        });
-    for pkg in pkgs_toml {
-        pkgs.push(pkg.as_str().unwrap_or_else(|| {
-            log(LogLevel::Error, "packages are a vec of strings");
-            std::process::exit(1);
-        }).to_string());
-    }
-    // Parse features
-    let mut features: Vec<String> = Vec::new();
-    let empty_features = Value::Array(Vec::new());
-    let features_toml = build.get("features").unwrap_or_else(|| &empty_features)
-        .as_array()
-        .unwrap_or_else(|| {
-            log(LogLevel::Error, "features is not an array");
-            std::process::exit(1);
-        });
-    for feature in features_toml {
-        features.push(feature.as_str().unwrap_or_else(|| {
-            log(LogLevel::Error, "feature are a vec of strings");
-            std::process::exit(1);
-        }).to_string());
-    }
+    let pkgs = parse_cfg_vector(build, "packages");
     // Parse compiler
     let compiler= build.get("compiler").unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find compiler in config file");
@@ -199,51 +187,63 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig
         log(LogLevel::Error, "compiler is not a string");
         std::process::exit(1);
         }).to_string();
-    // Parse optional
-    let empty_string = Value::String(String::new());
-    let ar = build.get("ar").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "ar is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let ld = build.get("ld").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "ld is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let os = build.get("os").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "os is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let qemu_en = build.get("qemu_en").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "qemu_en is not a string");
-                        std::process::exit(1);
-                    }).to_string();
+    // Parse ar and ld
+    let ar = parse_cfg_string(build, "ar");
+    let ld = parse_cfg_string(build, "ld");
 
     let build_config = BuildConfig {
         compiler,
         ar,
         ld,
-        os,
-        qemu_en,
-        features,
         packages:pkgs,
     };
-    // Determine whether qemu enable
-    let qemu_config: QemuConfig;
-    if build_config.qemu_en == "enable"{
-        qemu_config = parse_qemu(&config);
-    } else {
-        qemu_config = QemuConfig {
-            blk: String::new(),
-            net: String::new(),
-            graphic: String::new(),
-            bus: String::new(),
-            disk_img: String::new(),
-            qemu_log: String::new(),
-            net_dump: String::new(),
-            net_dev: String::new(),
+
+    // Parse os
+    let empty_os = toml::map::Map::default();
+    let os = config["os"].as_table().unwrap_or_else(|| {&empty_os});
+    let os_config : OSConfig;
+    // if os exist
+    if !os.is_empty() {
+        let name = parse_cfg_string(os, "name");
+        let features = parse_cfg_vector(os, "services");
+        os_config = OSConfig {
+            name,
+            features,
         };
+    } else {
+        os_config = OSConfig::default();
     }
 
+    // Parse platform
+    let empty_platform = toml::map::Map::default();
+    let platform = config["platform"].as_table().unwrap_or_else(|| {&empty_platform});
+    let platform_config : PlatformConfig;
+    // if platform exist
+    if !platform.is_empty() {
+        // Parse options
+        let name = parse_cfg_string(platform, "name");
+        let smp = parse_cfg_string(platform, "smp");
+        let mode = parse_cfg_string(platform, "mode");
+        let log = parse_cfg_string(platform, "log");
+        let v = parse_cfg_string(platform, "v");
+        // Determine whether enable qemu
+        let qemu: QemuConfig;
+        if name.split("-").any(|s| s == "qemu") {
+            qemu = parse_qemu(platform);
+        } else {
+            qemu = QemuConfig::default();
+        }
+        platform_config = PlatformConfig {
+            name,
+            smp,
+            mode,
+            log,
+            v,
+            qemu,
+        };
+    } else {
+        platform_config = PlatformConfig::default();
+    }
     // Parse multiple targets
     let mut tgt = Vec::new();
     let targets = config["targets"].as_array().unwrap_or_else(|| {
@@ -336,7 +336,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, QemuConfig
         }
     }
 
-    (build_config, qemu_config, tgt)
+    (build_config, os_config, platform_config, tgt)
 }
 
 /// Represents a package
@@ -346,17 +346,29 @@ pub struct Package {
     pub repo: String,
     pub branch: String,
     pub build_config: BuildConfig,
+    pub os_config: OSConfig,
+    pub platform_config: PlatformConfig,
     pub target_configs: Vec<TargetConfig>,
 }
 
 impl Package {
     /// Creates a new package
-    pub fn new(name: String, repo: String, branch: String, build_config: BuildConfig, target_configs: Vec<TargetConfig>) -> Package {
+    pub fn new (
+        name: String, 
+        repo: String, 
+        branch: String, 
+        build_config: BuildConfig, 
+        os_config: OSConfig, 
+        platform_config: PlatformConfig, 
+        target_configs: Vec<TargetConfig>
+    ) -> Package {
         Package {
             name,
             repo,
             branch,
             build_config,
+            os_config,
+            platform_config,
             target_configs,
         }
     }
@@ -430,15 +442,13 @@ impl Package {
             ar: String::new(),
             ld: String::new(),
             packages: Vec::new(),
-            features: Vec::new(),
-            os: String::new(),
-            qemu_en: String::new(),
         };
         let mut target_configs = Vec::new();
-
+        let os_config = OSConfig::default();
+        let platform_config = PlatformConfig::default();
         // parse the root toml file
         // packages = ["Dr-42/Nomu_Engine, master"]
-        let (build_config_toml, _ , _) = parse_config(path, false);
+        let (build_config_toml, _ , _ , _) = parse_config(path, false);
         for package in build_config_toml.packages {
             let deets = package.split_whitespace().collect::<Vec<&str>>();
             if deets.len() != 2 {
@@ -481,7 +491,7 @@ impl Package {
             #[cfg(target_os = "windows")]
             let pkg_toml = format!("{}/config_win32.toml", source_dir).replace("//", "/");
 
-            let (pkg_bld_config_toml, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
+            let (pkg_bld_config_toml, _, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
             if pkg_bld_config_toml.packages.len() > 0 {
@@ -541,7 +551,7 @@ impl Package {
             }
         }
 
-        packages.push(Package::new(name, repo, branch, build_config, target_configs));
+        packages.push(Package::new(name, repo, branch, build_config, os_config, platform_config, target_configs));
         // Sort and remove duplicate packages
         packages.sort_by_key(|a| a.name.clone());
         packages.dedup_by_key(|a| a.name.clone());
@@ -549,47 +559,38 @@ impl Package {
     }
 }
 
+pub fn parse_os(config: &Table) -> OSConfig {
+    let os = config["os"].as_table().unwrap_or_else(|| {
+        log(LogLevel::Error, "Could not find os in config file");
+        std::process::exit(1);
+    }); 
+    // Parse name
+    let name = parse_cfg_string(os, "name");
+    // Parse features
+    let features = parse_cfg_vector(os, "services");
+    OSConfig {
+        name,
+        features,
+    }
+}
+
 /// Parse qemu config
-pub fn parse_qemu(config: &Table) -> QemuConfig {
+fn parse_qemu(config: &Table) -> QemuConfig {
     let qemu = config["qemu"].as_table().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find qemu in config file");
         std::process::exit(1);
     }); 
     // Parse optional
-    let empty_string = Value::String(String::new());
-    let blk = qemu.get("blk").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "blk is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let net = qemu.get("net").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "net is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let graphic = qemu.get("graphic").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "graphic is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let bus = qemu.get("bus").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "bus is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let disk_img = qemu.get("disk_img").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "disk_img is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let qemu_log = qemu.get("qemu_log").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "qemu_log is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let net_dump = qemu.get("net_dump").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "net_dump is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let net_dev = qemu.get("net_dev").unwrap_or_else(|| &empty_string).as_str().unwrap_or_else(|| {
-                        log(LogLevel::Error, "net_dev is not a string");
-                        std::process::exit(1);
-                    }).to_string();
-    let qemu_config = QemuConfig {
+    let blk = parse_cfg_string(qemu, "blk");
+    let net = parse_cfg_string(qemu, "net");
+    let graphic = parse_cfg_string(qemu, "graphic");
+    let bus = parse_cfg_string(qemu, "bus");
+    let disk_img = parse_cfg_string(qemu, "disk_img");
+    let qemu_log = parse_cfg_string(qemu, "qemu_log");
+    let net_dump = parse_cfg_string(qemu, "net_dump");
+    let net_dev = parse_cfg_string(qemu, "net_dev");
+
+    QemuConfig {
         blk,
         net,
         graphic,
@@ -598,6 +599,39 @@ pub fn parse_qemu(config: &Table) -> QemuConfig {
         qemu_log,
         net_dump,
         net_dev,
-    };
-    qemu_config
+    }
+}
+
+fn parse_cfg_string(config: &Table, field: &str) -> String {
+    let empty_string = Value::String(String::new());
+    config.get(field)
+        .unwrap_or_else(|| &empty_string)
+        .as_str()
+        .unwrap_or_else(|| {
+            log(LogLevel::Error, &format!("{} is not a string", field));
+            std::process::exit(1);
+        })
+        .to_string()
+}
+
+fn parse_cfg_vector(config: &Table, field: &str) -> Vec<String> {
+    let empty_vector = Value::Array(Vec::new());
+    config.get(field)
+        .unwrap_or_else(|| &empty_vector)
+        .as_array()
+        .unwrap_or_else(|| {
+            log(LogLevel::Error, &format!("{} is not an array", field));
+            std::process::exit(1);
+        })
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .unwrap_or_else(|| {
+                    log(LogLevel::Error, &format!("{} elements are strings", field));
+                    std::process::exit(1);
+                })
+                .to_string()
+        })
+        .collect()
 }

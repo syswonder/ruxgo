@@ -1,5 +1,5 @@
 use crate::builder::Target;
-use crate::utils::{BuildConfig, TargetConfig, QemuConfig, Package, log, LogLevel};
+use crate::utils::{BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
 use crate::qemu;
 use std::path::Path;
@@ -111,6 +111,8 @@ pub fn clean_packages(packages: &Vec<Package>) {
 pub fn build(
     build_config: &BuildConfig, 
     targets: &Vec<TargetConfig>, 
+    os_config: &OSConfig,
+    platform_config: &PlatformConfig,
     gen_cc: bool, 
     gen_vsc: bool, 
     packages: &Vec<Package>
@@ -251,16 +253,16 @@ pub fn build(
     }
     
     // Get features
-    let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(&build_config);
+    let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
     // Construct os to libaxlibc.o;
-    if build_config.os == "rukos" {
-        log(LogLevel::Log, &format!("Compiling OS: {}", build_config.os));
+    if os_config != &OSConfig::default() {
+        log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
         build_os(&ax_feats_final, &lib_feats_final);
     };
 
     // Construct each target separately.
     for target in targets {
-        let mut tgt = Target::new(build_config, &target, &targets, &packages);
+        let mut tgt = Target::new(build_config, os_config, platform_config, &target, &targets, &packages);
         tgt.build(gen_cc);
     }
 
@@ -344,18 +346,19 @@ fn build_os(ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
 pub fn run (
     bin_args: Option<Vec<&str>>, 
     build_config: &BuildConfig, 
-    qemu_config: &QemuConfig, 
+    os_config: &OSConfig,
+    platform_config: &PlatformConfig,
     exe_target: &TargetConfig, 
     targets: &Vec<TargetConfig>, 
     packages: &Vec<Package>
 ) {
-    let trgt = Target::new(build_config, exe_target, &targets, &packages);
+    let trgt = Target::new(build_config, os_config, platform_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
     }
-    if build_config.qemu_en == "enable" {
-        let qemu_args_final = qemu::config_qemu(qemu_config, &trgt);
+    if platform_config.qemu != QemuConfig::default() {
+        let qemu_args_final = qemu::config_qemu(&platform_config.qemu, &trgt);
         run_qemu(qemu_args_final, &trgt);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));

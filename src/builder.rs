@@ -1,7 +1,7 @@
 //! This module contains the build related functions
 
 use crate::features::cfg_feat;
-use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel};
+use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel, OSConfig, PlatformConfig};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
 use std::fs;
@@ -26,6 +26,8 @@ pub struct Target<'a> {
     srcs: Vec<Src>,
     build_config: &'a BuildConfig,
     target_config: &'a TargetConfig,
+    os_config: &'a OSConfig,
+    platform_config: &'a PlatformConfig,
     dependant_includes: HashMap<String, Vec<String>>,
     pub bin_path: String,
     pub elf_path: String,
@@ -52,8 +54,10 @@ impl<'a> Target<'a> {
     /// * `target_config` - Target config
     /// * `targets` - All targets
     /// * `packages` - All packages
-    pub fn new(
+    pub fn new (
         build_config: &'a BuildConfig, 
+        os_config: &'a OSConfig,
+        platform_config: &'a PlatformConfig,
         target_config: &'a TargetConfig, 
         targets: &'a Vec<TargetConfig>, 
         packages: &'a Vec<Package>
@@ -76,13 +80,9 @@ impl<'a> Target<'a> {
         }
         #[cfg(target_os = "linux")]
         if target_config.typ == "exe" {
-            if build_config.qemu_en == "enable" {
-                elf_path = bin_path.clone();
-                bin_path.push_str(".bin");
-                elf_path.push_str(".elf");
-            } else {
-                bin_path.push_str("");
-            }
+            elf_path = bin_path.clone();
+            bin_path.push_str(".bin");
+            elf_path.push_str(".elf");
         } else if target_config.typ == "dll" {
             bin_path.push_str(".so");
         } else if target_config.typ == "static" {
@@ -97,7 +97,7 @@ impl<'a> Target<'a> {
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
             for target in targets {
                 if target.name == *dependant_lib {
-                    dependant_libs.push(Target::new(build_config, target, targets, packages));
+                    dependant_libs.push(Target::new(build_config, os_config, platform_config, target, targets, packages));
                 }
             }
         }
@@ -133,6 +133,8 @@ impl<'a> Target<'a> {
             srcs,
             build_config,
             target_config,
+            os_config,
+            platform_config,
             dependant_includes,
             bin_path,
             elf_path,
@@ -159,7 +161,7 @@ impl<'a> Target<'a> {
             for target in &pkg.target_configs {
                 let empty: Vec<Package> = Vec::new();
                 if target.typ == "dll" {
-                    let mut pkg_tgt = Target::new(&pkg.build_config, &target, &pkg.target_configs, &empty);
+                    let mut pkg_tgt = Target::new(&pkg.build_config, &pkg.os_config, &pkg.platform_config, target, &pkg.target_configs, &empty);
                     pkg_tgt.build(gen_cc);
                 }
             }
@@ -213,7 +215,7 @@ impl<'a> Target<'a> {
             let (to_build, _message) = src.to_build(&self.path_hash);
             //log(LogLevel::Debug, &format!("{} => {}", src.path, to_build));
             if to_build {
-                let warn = src.build(self.build_config, self.target_config, &self.dependant_libs);
+                let warn = src.build(self.build_config, self.os_config, self.target_config, &self.dependant_libs);
                 if warn.is_some() {
                     warns.lock().unwrap().push(warn.unwrap());
                 }
@@ -335,7 +337,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(obj);
             }
         } else if self.target_config.typ == "exe"{
-            if self.build_config.os.contains("rukos"){
+            if self.os_config.name == "rukos" {
                 cmd.push_str(&self.build_config.ld);
                 cmd.push_str(" ");
                 cmd.push_str(&self.target_config.ldflags);
@@ -686,11 +688,12 @@ impl Src {
     fn build(
         &self, 
         build_config: &BuildConfig, 
+        os_config: &OSConfig,
         target_config: &TargetConfig, 
         dependant_libs: &Vec<Target>
     ) -> Option<String> {
         let mut cmd = String::new();
-        let (_, lib_feats) = cfg_feat(build_config);
+        let (_, lib_feats) = cfg_feat(os_config);
         cmd.push_str(&build_config.compiler);
         cmd.push_str(" ");
         // Generate the preprocessing macro definition

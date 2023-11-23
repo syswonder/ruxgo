@@ -1,9 +1,9 @@
-use crate::utils::{BuildConfig, log, LogLevel};
+use crate::utils::{OSConfig, log, LogLevel};
 
-pub fn cfg_feat(build_config: &BuildConfig) -> (Vec<String>, Vec<String>) {
+pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     //log(LogLevel::Info, "Getting features...");
     let lib_features = vec!["fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "epoll"];
-    let mut features= build_config.features.clone();
+    let mut features= os_config.features.clone();
     if features.iter().any(|feat| {
         feat == "fs" || feat == "net" || feat == "pipe" || feat == "select" || feat == "epoll"
     }) {
@@ -27,13 +27,13 @@ pub fn cfg_feat(build_config: &BuildConfig) -> (Vec<String>, Vec<String>) {
     (ax_feats, lib_feats)
 }
 
-pub fn cfg_feat_addprefix(build_config: &BuildConfig) -> (Vec<String>, Vec<String>) {
+pub fn cfg_feat_addprefix(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     // Set prefix
     let ax_feat_prefix = "axfeat/";
     let lib_feat_prefix = "axlibc/";
 
     // Add prefix
-    let (ax_feats_pre, lib_feats_pre) = cfg_feat(build_config);
+    let (ax_feats_pre, lib_feats_pre) = cfg_feat(os_config);
     let ax_feats_final = ax_feats_pre.into_iter().map(|feat| format!("{}{}", ax_feat_prefix, feat)).collect::<Vec<String>>();
     let lib_feats_final = lib_feats_pre.into_iter().map(|feat| format!("{}{}", lib_feat_prefix, feat)).collect::<Vec<String>>();
     log(LogLevel::Debug, &format!("ax_feats_final : {:?}", ax_feats_final));
