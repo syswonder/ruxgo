@@ -1,7 +1,8 @@
 use crate::builder::Target;
-use crate::utils::{BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
+use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
 use crate::qemu;
+use crate::environment;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -75,6 +76,7 @@ pub fn clean(targets: &Vec<TargetConfig>) {
 /// # Arguments
 /// * `packages` - A vector of packages to clean
 pub fn clean_packages(packages: &Vec<Package>) {
+    log(LogLevel::Log, "Cleaning packages...");
     for pack in packages {
         for target in &pack.target_configs {
             #[cfg(target_os = "windows")]
@@ -392,7 +394,7 @@ pub fn run (
     }
 }
 
-pub fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
+fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
     log(LogLevel::Log, "Running on qemu...");
     log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
     let mut cmd = String::new();
@@ -416,7 +418,9 @@ pub fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
 }
 
 ///Initialises a new project in the current directory
-pub fn init(project_name: &str) {
+pub fn init_project(project_name: &str, is_c: bool) {
+    log(LogLevel::Log, "Initializing project...");
+
     if Path::new(project_name).exists() {
         log(LogLevel::Error, &format!("{} already exists", project_name));
         log(LogLevel::Error, "Cannot initialise project");
@@ -451,7 +455,10 @@ pub fn init(project_name: &str) {
             log(LogLevel::Error, &format!("Could not create config file: {}", why));
             std::process::exit(1);
         });
-    let sample_config = "[build]\ncompiler = \"g++\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall\"\nlibs = \"\"\ndeps = [\"\"]\n";
+    let mut sample_config = "[build]\ncompiler = \"g++\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall\"\nlibs = \"\"\ndeps = [\"\"]\n";
+    if is_c {
+        sample_config = "[build]\ncompiler = \"gcc\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall\"\nlibs = \"\"\ndeps = [\"\"]\n";
+    }
     config_file.write_all(sample_config.as_bytes()).unwrap_or_else(|why| {
         log(LogLevel::Error, &format!("Could not write to config file: {}", why));
         std::process::exit(1);
@@ -475,7 +482,10 @@ pub fn init(project_name: &str) {
     }
 
     //Create main.cpp
-    let main_path = src_dir.to_owned() + "/main.cpp";
+    let mut main_path = src_dir.to_owned() + "/main.cpp";
+    if is_c {
+        main_path = src_dir.to_owned() + "/main.c";
+    }
     if !Path::new(&main_path).exists() {
         let mut main_file = fs::OpenOptions::new()
             .write(true)
@@ -485,10 +495,17 @@ pub fn init(project_name: &str) {
                 log(LogLevel::Error, &format!("Could not create main.cpp: {}", why));
                 std::process::exit(1);
             });
-        main_file.write_all(b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Hello World!\" << std::endl;\n\treturn 0;\n}").unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not write to main.cpp: {}", why));
-            std::process::exit(1);
-        });
+        if is_c {
+            main_file.write_all(b"#include <stdio.h>\n\nint main() {\n\tprintf(\"Hello World!\\n\");\n\treturn 0;\n}").unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not write to main.c: {}", why));
+                std::process::exit(1);
+            });
+        } else {
+            main_file.write_all(b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Hello World!\" << std::endl;\n\treturn 0;\n}").unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not write to main.cpp: {}", why));
+                std::process::exit(1);
+            });
+        }
     }
 
     //Create .gitignore
@@ -509,4 +526,89 @@ pub fn init(project_name: &str) {
     }
 
     log(LogLevel::Log, &format!("Project {} initialised", project_name));
+    std::process::exit(0);
+}
+
+pub fn parse_config() -> (
+    BuildConfig,
+    OSConfig,
+    PlatformConfig,
+    Vec<TargetConfig>,
+    Vec<Package>,
+) {
+    #[cfg(target_os = "linux")]
+    let (build_config, os_config, platform_config, targets) = utils::parse_config("./config_linux.toml", true);
+    #[cfg(target_os = "windows")]
+    let (build_config, os_config, Platform_config, targets) = utils::parse_config("./config_win32.toml", true);
+
+    // Configure env
+    if platform_config != PlatformConfig::default() {
+        environment::config_env(&platform_config);
+    } 
+
+    let mut num_exe = 0;
+    let mut exe_target: Option<&TargetConfig> = None;
+    if targets.len() == 0 {
+        log(LogLevel::Error, "No targets in config");
+        std::process::exit(1);
+    } else {
+        // Allow only one exe and set it as the exe_target
+        for target in &targets {
+            if target.typ == "exe" {
+                num_exe += 1;
+                exe_target = Some(target);
+            }
+        }
+    }
+
+    if num_exe != 1 || exe_target.is_none() {
+        log(
+            LogLevel::Error,
+            "Exactly one executable target must be specified",
+        );
+        std::process::exit(1);
+    }
+
+    #[cfg(target_os = "linux")]
+    let packages = Package::parse_packages("./config_linux.toml");
+    #[cfg(target_os = "windows")]
+    let packages = Package::parse_packages("./config_win32.toml");
+
+    (build_config, os_config, platform_config, targets, packages)
+}
+
+pub fn pre_gen_cc() {
+    if !Path::new("./compile_commands.json").exists() {
+        fs::File::create(Path::new("./compile_commands.json")).unwrap();
+    } else {
+        fs::remove_file(Path::new("./compile_commands.json")).unwrap();
+        fs::File::create(Path::new("./compile_commands.json")).unwrap();
+    }
+}
+
+pub fn pre_gen_vsc() {
+    if !Path::new("./.vscode").exists() {
+        fs::create_dir(Path::new("./.vscode")).unwrap();
+    }
+
+    if !Path::new("./.vscode/c_cpp_properties.json").exists() {
+        fs::File::create(Path::new("./.vscode/c_cpp_properties.json")).unwrap();
+    } else {
+        fs::remove_file(Path::new("./.vscode/c_cpp_properties.json")).unwrap();
+        fs::File::create(Path::new("./.vscode/c_cpp_properties.json")).unwrap();
+    }
+}
+
+pub fn update_packages(packages: &Vec<utils::Package>) {
+    log(LogLevel::Log, "Updating packages...");
+    for package in packages {
+        package.update();
+    }
+}
+
+pub fn restore_packages(packages: &Vec<utils::Package>) {
+    log(LogLevel::Log, "Restoring packages...");
+    for package in packages {
+        package.restore();
+    }
 }
