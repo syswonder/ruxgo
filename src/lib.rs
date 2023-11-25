@@ -18,5 +18,3 @@ pub mod hasher;
 pub mod features;
 
 pub mod qemu;
-
-pub mod environment;

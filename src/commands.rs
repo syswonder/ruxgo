@@ -2,7 +2,6 @@ use crate::builder::Target;
 use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
 use crate::qemu;
-use crate::environment;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -538,9 +537,14 @@ pub fn parse_config() -> (
     #[cfg(target_os = "windows")]
     let (build_config, os_config, targets) = utils::parse_config("./config_win32.toml", true);
 
-    // Configure env
+    // Configure environment variables
     if os_config != OSConfig::default() && os_config.platform != PlatformConfig::default() {
-        environment::config_env(&os_config.platform);
+        std::env::set_var("AX_ARCH", &os_config.platform.arch);
+        std::env::set_var("AX_PLATFORM", &os_config.platform.name);
+        std::env::set_var("AX_SMP", &os_config.platform.smp);
+        std::env::set_var("AX_MODE", &os_config.platform.mode);
+        std::env::set_var("AX_LOG", &os_config.platform.log);
+        std::env::set_var("AX_TARGET", &os_config.platform.target);
     } 
 
     let mut num_exe = 0;

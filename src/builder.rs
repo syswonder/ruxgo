@@ -364,7 +364,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.elf_path);
                 // Generate a .bin file
-                cmd_bin.push_str("rust-objcopy --binary-architecture=x86_64");
+                cmd_bin.push_str(&format!("rust-objcopy --binary-architecture={}", &self.os_config.platform.arch));
                 cmd_bin.push_str(" ");
                 cmd_bin.push_str(&self.elf_path);
                 cmd_bin.push_str(" --strip-all -O binary ");

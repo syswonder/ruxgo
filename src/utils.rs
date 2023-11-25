@@ -91,6 +91,9 @@ pub struct OSConfig {
 #[derive(Debug, Default, PartialEq)]
 pub struct PlatformConfig {
     pub name: String,
+    pub arch: String,
+    pub target: String,
+    pub accel: String,
     pub smp: String,
     pub mode: String,
     pub log: String,
@@ -217,25 +220,30 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         log(LogLevel::Error, "Compiler is not a string");
         std::process::exit(1);
         }).to_string();
-    let ar = parse_cfg_string(build, "ar");
-    let ld = parse_cfg_string(build, "ld");
+    let ar = parse_cfg_string(build, "ar", "");
+    let ld = parse_cfg_string(build, "ld", "");
     let packages = parse_cfg_vector(build, "packages");
     let build_config = BuildConfig {compiler, ar, ld, packages};
 
     // Parse os (optional)
-    let empty_os = toml::map::Map::default();
-    let os = config["os"].as_table().unwrap_or_else(|| {&empty_os});
-    let os_config : OSConfig;
-    if !os.is_empty() {
-        let name = parse_cfg_string(os, "name");
-        let features = parse_cfg_vector(os, "services");
-        // Parse platform (optional)
-        let platform = parse_platform(os);
-        os_config = OSConfig {
-            name,
-            features,
-            platform,
-        };
+    let empty_os = Value::Table(toml::map::Map::default());
+    let os = config.get("os").unwrap_or(&empty_os);
+    let os_config: OSConfig;
+    if os != &empty_os {
+        if let Some(os_table) = os.as_table() {
+            let name = parse_cfg_string(&os_table, "name", "");
+            let features = parse_cfg_vector(&os_table, "services");
+            // Parse platform (if empty, it is the default value)
+            let platform = parse_platform(&os_table);
+            os_config = OSConfig {
+                name,
+                features,
+                platform,
+            };
+        } else {
+            log(LogLevel::Error, "OS is not a table");
+            std::process::exit(1);
+        }
     } else {
         os_config = OSConfig::default();
     }
@@ -252,12 +260,12 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             std::process::exit(1);
         });
         let target_config = TargetConfig {
-            name: parse_cfg_string(target_tb, "name"),
-            src: parse_cfg_string(target_tb, "src"),
-            include_dir: parse_cfg_string(target_tb, "include_dir"),
-            typ: parse_cfg_string(target_tb, "type"),
-            cflags: parse_cfg_string(target_tb, "cflags"),
-            ldflags: parse_cfg_string(target_tb, "ldflags"),
+            name: parse_cfg_string(target_tb, "name", ""),
+            src: parse_cfg_string(target_tb, "src", ""),
+            include_dir: parse_cfg_string(target_tb, "include_dir", ""),
+            typ: parse_cfg_string(target_tb, "type", ""),
+            cflags: parse_cfg_string(target_tb, "cflags", ""),
+            ldflags: parse_cfg_string(target_tb, "ldflags", ""),
             // Deps is optional
             deps: parse_cfg_vector(target_tb, "deps"),
         };
@@ -310,66 +318,79 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
 
 /// Parse platform config
 fn parse_platform(config: &Table) -> PlatformConfig {
-    let empty_platform = toml::map::Map::default();
-    let platform = config["platform"].as_table().unwrap_or_else(|| {&empty_platform});
-    if !platform.is_empty() {
-        let name = parse_cfg_string(platform, "name");
-        let smp = parse_cfg_string(platform, "smp");
-        let mode = parse_cfg_string(platform, "mode");
-        let log = parse_cfg_string(platform, "log");
-        let v = parse_cfg_string(platform, "v");
+    let empty_platform = Value::Table(toml::map::Map::default());
+    let platform = config.get("platform").unwrap_or(&empty_platform);
+    if let Some(platform_table) = platform.as_table() {
+        let name = parse_cfg_string(&platform_table, "name", "x86_64-qemu-q35");
+        let arch = name.split("-").next().unwrap_or("x86_64").to_string();
+        let (target, accel) = match &arch[..] {
+            "x86_64" => {
+                let accel_pre = match Command::new("uname").arg("-r").output() {
+                    Ok(output) => {
+                        let kernel_version = String::from_utf8_lossy(&output.stdout).to_lowercase();
+                        if kernel_version.contains("-microsoft") { "n" } else { "y" }
+                    },
+                    Err(_) => {
+                        log(LogLevel::Error, "Failed to execute command");
+                        std::process::exit(1);
+                    }
+                };
+                ("x86_64-unknown-none".to_string(), accel_pre.to_string())
+            },
+            "riscv64" => ("riscv64gc-unknown-none-elf".to_string(), "n".to_string()),
+            "aarch64" => ("aarch64-unknown-none-softfloat".to_string(), "n".to_string()),
+            _ => {
+                log(LogLevel::Error, "\"ARCH\" must be one of \"x86_64\", \"riscv64\", or \"aarch64\"");
+                std::process::exit(1);
+            }
+        };
+        let smp = parse_cfg_string(&platform_table, "smp", "1");
+        let mode = parse_cfg_string(&platform_table, "mode", "release");
+        let log = parse_cfg_string(&platform_table, "log", "warn");
+        let v = parse_cfg_string(&platform_table, "v", "");
         // Determine whether enable qemu
         let qemu: QemuConfig;
         if name.split("-").any(|s| s == "qemu") {
-            // Parse qemu (optional)
-            qemu = parse_qemu(platform);
+            // Parse qemu (if empty, it is the default value)
+            qemu = parse_qemu(&arch, &platform_table);
         } else {
             qemu = QemuConfig::default();
         }
-        PlatformConfig {
-            name,
-            smp,
-            mode,
-            log,
-            v,
-            qemu,
-        }
+        PlatformConfig {name, arch, target, accel, smp, mode, log, v, qemu}
     } else {
-        PlatformConfig::default()
-    }
+        log(LogLevel::Error, "Platform is not a table");
+        std::process::exit(1);
+    } 
 }
 
 /// Parse qemu config
-fn parse_qemu(config: &Table) -> QemuConfig {
-    let qemu = config["qemu"].as_table().unwrap_or_else(|| {
-        log(LogLevel::Error, "Could not find qemu in config file");
-        std::process::exit(1);
-    }); 
-    let blk = parse_cfg_string(qemu, "blk");
-    let net = parse_cfg_string(qemu, "net");
-    let graphic = parse_cfg_string(qemu, "graphic");
-    let bus = parse_cfg_string(qemu, "bus");
-    let disk_img = parse_cfg_string(qemu, "disk_img");
-    let qemu_log = parse_cfg_string(qemu, "qemu_log");
-    let net_dump = parse_cfg_string(qemu, "net_dump");
-    let net_dev = parse_cfg_string(qemu, "net_dev");
+fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
+    let empty_qemu = Value::Table(toml::map::Map::default());
+    let qemu = config.get("qemu").unwrap_or(&empty_qemu);
+    if let Some(qemu_table) = qemu.as_table() {
+        let blk = parse_cfg_string(&qemu_table, "blk", "n");
+        let net = parse_cfg_string(&qemu_table, "net", "n");
+        let graphic = parse_cfg_string(&qemu_table, "graphic", "n");
+        let bus = match &arch[..] {
+            "x86_64" => "pci".to_string(),
+            _ => "mmio".to_string()
+        };
+        let disk_img = parse_cfg_string(&qemu_table, "disk_img", "disk.img");
+        let qemu_log = parse_cfg_string(&qemu_table, "qemu_log", "n");
+        let net_dump = parse_cfg_string(&qemu_table, "net_dump", "n");
+        let net_dev = parse_cfg_string(&qemu_table, "net_dev", "user");
 
-    QemuConfig {
-        blk,
-        net,
-        graphic,
-        bus,
-        disk_img,
-        qemu_log,
-        net_dump,
-        net_dev,
+        QemuConfig {blk, net, graphic, bus, disk_img, qemu_log, net_dump, net_dev}
+    } else {
+        log(LogLevel::Error, "Qemu is not a table");
+        std::process::exit(1);
     }
 }
 
-fn parse_cfg_string(config: &Table, field: &str) -> String {
-    let empty_string = Value::String(String::new());
+fn parse_cfg_string(config: &Table, field: &str, default: &str) -> String {
+    let default_string = Value::String(default.to_string());
     config.get(field)
-        .unwrap_or_else(|| &empty_string)
+        .unwrap_or_else(|| &default_string)
         .as_str()
         .unwrap_or_else(|| {
             log(LogLevel::Error, &format!("{} is not a string", field));
