@@ -1,7 +1,12 @@
 [package]
 name = "rukoskit"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
+authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
+description = "A Cargo-like build tool for building C and C++ applications"
+homepage = "https://github.com/Ybeichen/rukoskit"
+repository = "https://github.com/Ybeichen/rukoskit"
+keywords = ["toml", "build-tool", "C++", "C", "Rust"]
 
 [dependencies]
 toml = "0.7.2"

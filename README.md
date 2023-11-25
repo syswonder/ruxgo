@@ -4,10 +4,6 @@ A Cargo-like build tool for building C and C++ applications
 
 🚧 Working In Progress. 
 
-## Usage
-
-Write a config_linux.toml for linux and a config_win32.toml for windows in the project directory
-
 ## Features & TODOs
 
 * [x] Multithreaded
@@ -22,6 +18,42 @@ Write a config_linux.toml for linux and a config_win32.toml for windows in the p
 * [x] Supported run by qemu
 * [ ] Env cmd
 * [ ] Support different Arch
+
+## Usage
+
+Write a config_linux.toml for linux and a config_win32.toml for windows in the project directory
+
+To create a new project 
+```console
+rukoskit init <project-name> [--c|--cpp]
+```
+
+For help
+```console
+rukoskit --help
+```
+
+The help command will show you the following
+```sh
+Usage: builder_cpp.exe [OPTIONS] [COMMAND]
+
+Commands:
+  init  Initialize a new project Defaults to C++ if no language is specified
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -b, --build                   Build your project
+  -c, --clean                   Clean the obj and bin intermediates
+  -r, --run                     Run the executable
+      --bin-args <BIN_ARGS>...  Arguments to pass to the executable when running
+      --gen-cc                  Generate compile_commands.json
+      --gen-vsc                 Generate .vscode/c_cpp_properties.json
+      --clean-packages          Clean packages
+      --update-packages         Update packages
+      --restore-packages        Restore packages
+  -h, --help                    Print help
+  -V, --version                 Print version
+```
 
 ## Installation
 
