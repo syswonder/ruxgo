@@ -98,7 +98,7 @@ fn main() {
         commands::pre_gen_vsc();
     }
 
-    let (build_config, os_config, platform_config, targets, packages) = commands::parse_config();
+    let (build_config, os_config, targets, packages) = commands::parse_config();
 
     if args.clean_packages {
         commands::clean_packages(&packages);
@@ -122,7 +122,7 @@ fn main() {
 
     if args.build {
         utils::log(utils::LogLevel::Log, "Building...");
-        commands::build(&build_config, &targets, &os_config, &platform_config, gen_cc, gen_vsc, &packages);
+        commands::build(&build_config, &targets, &os_config, gen_cc, gen_vsc, &packages);
     }
 
     if args.run {
@@ -133,7 +133,7 @@ fn main() {
 
         utils::log(utils::LogLevel::Log, "Running...");
         let exe_target = targets.iter().find(|x| x.typ == "exe").unwrap();
-        commands::run(bin_args, &build_config, &os_config, &platform_config, exe_target, &targets, &packages);
+        commands::run(bin_args, &build_config, &os_config, exe_target, &targets, &packages);
     }
 }
 

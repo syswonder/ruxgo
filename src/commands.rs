@@ -114,7 +114,6 @@ pub fn build(
     build_config: &BuildConfig, 
     targets: &Vec<TargetConfig>, 
     os_config: &OSConfig,
-    platform_config: &PlatformConfig,
     gen_cc: bool, 
     gen_vsc: bool, 
     packages: &Vec<Package>
@@ -259,12 +258,12 @@ pub fn build(
     // Construct os to libaxlibc.o;
     if os_config != &OSConfig::default() {
         log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-        build_os(&platform_config, &ax_feats_final, &lib_feats_final);
+        build_os(&os_config.platform, &ax_feats_final, &lib_feats_final);
     };
 
     // Construct each target separately.
     for target in targets {
-        let mut tgt = Target::new(build_config, os_config, platform_config, &target, &targets, &packages);
+        let mut tgt = Target::new(build_config, os_config, &target, &targets, &packages);
         tgt.build(gen_cc);
     }
 
@@ -359,18 +358,17 @@ pub fn run (
     bin_args: Option<Vec<&str>>, 
     build_config: &BuildConfig, 
     os_config: &OSConfig,
-    platform_config: &PlatformConfig,
     exe_target: &TargetConfig, 
     targets: &Vec<TargetConfig>, 
     packages: &Vec<Package>
 ) {
-    let trgt = Target::new(build_config, os_config, platform_config, exe_target, &targets, &packages);
+    let trgt = Target::new(build_config, os_config, exe_target, &targets, &packages);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
     }
-    if platform_config.qemu != QemuConfig::default() {
-        let qemu_args_final = qemu::config_qemu(&platform_config.qemu, &trgt);
+    if os_config.platform.qemu != QemuConfig::default() {
+        let qemu_args_final = qemu::config_qemu(&os_config.platform.qemu, &trgt);
         run_qemu(qemu_args_final, &trgt);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
@@ -532,18 +530,17 @@ pub fn init_project(project_name: &str, is_c: bool) {
 pub fn parse_config() -> (
     BuildConfig,
     OSConfig,
-    PlatformConfig,
     Vec<TargetConfig>,
     Vec<Package>,
 ) {
     #[cfg(target_os = "linux")]
-    let (build_config, os_config, platform_config, targets) = utils::parse_config("./config_linux.toml", true);
+    let (build_config, os_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
-    let (build_config, os_config, Platform_config, targets) = utils::parse_config("./config_win32.toml", true);
+    let (build_config, os_config, targets) = utils::parse_config("./config_win32.toml", true);
 
     // Configure env
-    if platform_config != PlatformConfig::default() {
-        environment::config_env(&platform_config);
+    if os_config != OSConfig::default() && os_config.platform != PlatformConfig::default() {
+        environment::config_env(&os_config.platform);
     } 
 
     let mut num_exe = 0;
@@ -574,7 +571,7 @@ pub fn parse_config() -> (
     #[cfg(target_os = "windows")]
     let packages = Package::parse_packages("./config_win32.toml");
 
-    (build_config, os_config, platform_config, targets, packages)
+    (build_config, os_config, targets, packages)
 }
 
 pub fn pre_gen_cc() {

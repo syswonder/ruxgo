@@ -1,7 +1,7 @@
 //! This module contains the build related functions
 
 use crate::features::cfg_feat;
-use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel, OSConfig, PlatformConfig};
+use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel, OSConfig};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
 use std::fs;
@@ -27,7 +27,6 @@ pub struct Target<'a> {
     build_config: &'a BuildConfig,
     target_config: &'a TargetConfig,
     os_config: &'a OSConfig,
-    platform_config: &'a PlatformConfig,
     dependant_includes: HashMap<String, Vec<String>>,
     pub bin_path: String,
     pub elf_path: String,
@@ -57,7 +56,6 @@ impl<'a> Target<'a> {
     pub fn new (
         build_config: &'a BuildConfig, 
         os_config: &'a OSConfig,
-        platform_config: &'a PlatformConfig,
         target_config: &'a TargetConfig, 
         targets: &'a Vec<TargetConfig>, 
         packages: &'a Vec<Package>
@@ -97,7 +95,7 @@ impl<'a> Target<'a> {
         for dependant_lib in &target_config.deps { // find current target's dependant_lib
             for target in targets {
                 if target.name == *dependant_lib {
-                    dependant_libs.push(Target::new(build_config, os_config, platform_config, target, targets, packages));
+                    dependant_libs.push(Target::new(build_config, os_config, target, targets, packages));
                 }
             }
         }
@@ -134,7 +132,6 @@ impl<'a> Target<'a> {
             build_config,
             target_config,
             os_config,
-            platform_config,
             dependant_includes,
             bin_path,
             elf_path,
@@ -161,7 +158,7 @@ impl<'a> Target<'a> {
             for target in &pkg.target_configs {
                 let empty: Vec<Package> = Vec::new();
                 if target.typ == "dll" {
-                    let mut pkg_tgt = Target::new(&pkg.build_config, &pkg.os_config, &pkg.platform_config, target, &pkg.target_configs, &empty);
+                    let mut pkg_tgt = Target::new(&pkg.build_config, &pkg.os_config, target, &pkg.target_configs, &empty);
                     pkg_tgt.build(gen_cc);
                 }
             }
