@@ -6,8 +6,8 @@ use std::path::Path;
 use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
-use std::env;
 
+static ROOT_DIR: &str = "rukos_bld";
 static BUILD_DIR: &str = "rukos_bld/bin";
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
@@ -18,8 +18,8 @@ static OBJ_DIR: &str = "rukos_bld/obj_linux";
 /// # Arguments
 /// * `targets` - A vector of targets to clean
 pub fn clean(targets: &Vec<TargetConfig>) {
-    if Path::new("rukos_bld").exists() {
-        fs::remove_dir_all("rukos_bld").unwrap_or_else(|why| {  //? have some differences
+    if Path::new(ROOT_DIR).exists() {
+        fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {  //? have some differences
             log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
         });
     }
@@ -299,11 +299,9 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
     }
     let mut cmd = String::new();
     cmd.push_str("cargo build");
-    cmd.push_str(" ");
-    if let Ok(target) = std::env::var("AX_TARGET") {
-        cmd.push_str(format!("--target {}", target).as_str());
-    }
-    cmd.push_str(format!(" --target-dir /home/beichen/arceos/target --{} -p axlibc", platform_config.mode).as_str());
+    cmd.push_str(format!(" --target {}", platform_config.target).as_str());
+    cmd.push_str(format!(" --target-dir {}/target", ROOT_DIR).as_str());
+    cmd.push_str(format!(" --{} -p axlibc", platform_config.mode).as_str());
     // add verbose
     let verbose = match platform_config.v.as_str() {
         "1" => "-v",
@@ -337,14 +335,6 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
         log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
         std::process::exit(1);
     }
-    // Copy libaxlibc.a to rukos_bld/bin/
-    // Consider changing the following strings to Static variable
-    let src_path = format!("{}/arceos/target/x86_64-unknown-none/release/libaxlibc.a", env!("HOME"));
-    let dest_path = format!("rukos_bld/bin/libaxlibc.a");
-    fs::copy(src_path, dest_path).unwrap_or_else(|why| {
-        log(LogLevel::Error, &format!("Could not copy libaxlibc.a to rukos_bld/bin/: {}", why));
-        std::process::exit(1);
-    });
 } 
 
 /// Runs the exe target

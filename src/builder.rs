@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
 
+static ROOT_DIR: &str = "rukos_bld";
 static BUILD_DIR: &str = "rukos_bld/bin";
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
@@ -355,8 +356,11 @@ impl<'a> Target<'a> {
                         cmd.push_str(".a");
                     }
                 }
+                // link os
                 cmd.push_str(" ");
-                cmd.push_str("rukos_bld/bin/libaxlibc.a");
+                cmd.push_str(&format!("{}/target/{}/{}/libaxlibc.a", 
+                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode));
+                // link other obj
                 for obj in objs {
                     cmd.push_str(" ");
                     cmd.push_str(obj);
