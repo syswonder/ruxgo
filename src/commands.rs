@@ -367,7 +367,7 @@ pub fn run (
         std::process::exit(1);
     }
     if os_config.platform.qemu != QemuConfig::default() {
-        let qemu_args_final = qemu::config_qemu(&os_config.platform.qemu, &trgt);
+        let qemu_args_final = qemu::config_qemu(&os_config.platform, &trgt);
         run_qemu(qemu_args_final, &trgt);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));

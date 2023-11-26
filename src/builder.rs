@@ -326,7 +326,7 @@ impl<'a> Target<'a> {
         } else if self.target_config.typ == "static" {
             cmd.push_str(&self.build_config.ar);  // Use ar to archive target files
             cmd.push_str(" ");
-            cmd.push_str(&self.target_config.ldflags); //? Consider to add ar flags or other static libs 
+            cmd.push_str(&self.target_config.ldflags);
             cmd.push_str(" ");
             cmd.push_str(&self.bin_path);
             for obj in objs {
@@ -703,17 +703,34 @@ impl Src {
         dependant_libs: &Vec<Target>
     ) -> Option<String> {
         let mut cmd = String::new();
-        let (_, lib_feats) = cfg_feat(os_config);
         cmd.push_str(&build_config.compiler);
         cmd.push_str(" ");
-        // Generate the preprocessing macro definition
-        for lib_feat in lib_feats {
-            let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
+        // Add features of rukos
+        if os_config.name == "rukos" {
+            let (_, lib_feats) = cfg_feat(os_config);
+            // Generate the preprocessing macro definition
+            for lib_feat in lib_feats {
+                let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
+                cmd.push_str(" -DAX_CONFIG_");
+                cmd.push_str(&processed_lib_feat);
+            }
             cmd.push_str(" -DAX_CONFIG_");
-            cmd.push_str(&processed_lib_feat);
+            cmd.push_str(os_config.platform.log.to_uppercase().as_str());
+            cmd.push_str(" ");
+            if os_config.platform.mode == "release" {
+                cmd.push_str(" -O3 ");
+            }
+            if os_config.platform.arch == "riscv64" {
+                cmd.push_str(" -march=rv64gc -mabi=lp64d -mcmodel=medany ");
+            }
+            if !os_config.features.contains(&"fp_simd".to_string()) {
+                if os_config.platform.arch == "x86_64".to_string() {
+                    cmd.push_str(" -mno-sse ");
+                } else if os_config.platform.arch == "aarch64".to_string() {
+                    cmd.push_str(" -mgeneral-regs-only ");
+                }
+            }
         }
-        cmd.push_str(" -DAX_CONFIG_WARN");
-        cmd.push_str(" ");
         cmd.push_str(&target_config.cflags);
         cmd.push_str(" -I");
         cmd.push_str(&target_config.include_dir);

@@ -1,7 +1,6 @@
 use crate::utils::{OSConfig, log, LogLevel};
 
 pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
-    //log(LogLevel::Info, "Getting features...");
     let lib_features = vec!["fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "epoll"];
     let mut features= os_config.features.clone();
     if features.iter().any(|feat| {
@@ -12,10 +11,20 @@ pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     
     let mut ax_feats = Vec::new();
     let mut lib_feats = Vec::new();
-    //? Determine LOG and pci (Add environment variables later)
-    ax_feats.push("log-level-error".to_string());
-    ax_feats.push("bus-pci".to_string());
-    lib_feats.push("smp".to_string());
+
+    match os_config.platform.log.as_str() {
+        "off" | "error" | "warn" | "info" | "debug" | "trace" => {
+            ax_feats.push(format!("log-level-{}", os_config.platform.log));
+        },
+        _ => log(LogLevel::Error, "LOG must be one of 'off', 'error', 'warn', 'info', 'debug', 'trace'")
+    }
+    if os_config.platform.qemu.bus == "pci" {
+        ax_feats.push("bus-pci".to_string());
+    }
+    if os_config.platform.smp.parse::<i32>().unwrap_or(0) > 1 {
+        lib_feats.push("smp".to_string());
+    }
+
     // get content of features
     for feat in features {
         if !lib_features.contains(&feat.as_str()) {
