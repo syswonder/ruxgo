@@ -8,33 +8,32 @@ use std::collections::HashMap;
 use sha1::{Sha1, Digest};
 
 /// Hashes a file and returns the hash as a string.
-fn hash_file(path: &str) -> String {
-    let mut file = File::open(path).unwrap();
-    const CHUNK_SIZE: usize = 1024 * 1024;  // 1MB: read files in chunks 
-
-    let mut limit = file.metadata().unwrap_or_else(|why| {
-        log(LogLevel::Error, &format!("Failed to get length for file: {}", path));
-        log(LogLevel::Error, &format!("Error: {}", why));
-        std::process::exit(1);
-    }).len();
-    let mut buffer = [0; CHUNK_SIZE];
-    let mut hasher = Sha1::new();
-
-    while limit > 0 {
-        let read_size = min(limit as usize, CHUNK_SIZE);
-        let read = file.read(&mut buffer[0..read_size]).unwrap();
-        if read == 0 {
-            break;
+fn hash_file(path: &str) -> Option<String> {
+    if let Ok(mut file) = File::open(path) {
+        const CHUNK_SIZE: usize = 1024 * 1024;  // 1MB: read files in chunks 
+        let mut limit = file.metadata().unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Failed to get length for file: {}", path));
+            log(LogLevel::Error, &format!("Error: {}", why));
+            std::process::exit(1);
+        }).len();
+        let mut buffer = [0; CHUNK_SIZE];
+        let mut hasher = Sha1::new();
+    
+        while limit > 0 {
+            let read_size = min(limit as usize, CHUNK_SIZE);
+            let read = file.read(&mut buffer[0..read_size]).unwrap();
+            if read == 0 {
+                break;
+            }
+            limit -= read as u64;
+            hasher.update(&buffer[0..read]);
         }
-        limit -= read as u64;
-        hasher.update(&buffer[0..read]);
+        let result = hasher.finalize();
+        Some(result.iter().map(|byte| format!("{:02x}", byte)).collect())
+    } else {
+        log(LogLevel::Warn, &format!("Failed to open file '{}'", path));
+        None
     }
-    let result = hasher.finalize();
-    let mut hash = String::new();
-    for byte in result {
-        hash.push_str(&format!("{:02x}", byte));
-    }
-    return hash;
 }
 
 /// Returns the hash of a file if it exists in the path_hash.
@@ -98,9 +97,11 @@ pub fn is_file_changed(path: &str, path_hash: &HashMap<String, String>) -> bool 
         return true;
     }
     let hash = hash.unwrap();
-    let new_hash = hash_file(path);
-    let result = hash != new_hash;
-    result
+    let new_hash = match hash_file(path) {
+        Some(h) => h,
+        None => String::new(),
+    };
+    hash != new_hash
 }
 
 /// Saves the hash of a file to the hashmap.
@@ -108,7 +109,10 @@ pub fn is_file_changed(path: &str, path_hash: &HashMap<String, String>) -> bool 
 /// * `path` - The path of the file to save the hash of.
 /// * `path_hash` - The hashmap of paths and hashes.
 pub fn save_hash(path: &str, path_hash: &mut HashMap<String, String>) {
-    let new_hash = hash_file(path);
+    let new_hash = match hash_file(path) {
+        Some(h) => h,
+        None => String::new(),
+    };
     let hash = get_hash(path, path_hash);
     if hash.is_none() {
         path_hash.insert(path.to_string(), new_hash);

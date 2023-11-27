@@ -131,6 +131,9 @@ impl TargetConfig {
     /// # Arguments
     /// * `path` - The path to the src directory
     fn get_src_names(path: &str) -> Vec<String> {
+        if path.is_empty() {
+            return Vec::new();
+        }
         let mut src_names = Vec::new();
         let src_path = Path::new(&path);
         let src_entries = std::fs::read_dir(src_path).unwrap_or_else(|_| {
@@ -269,8 +272,9 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             // Deps is optional
             deps: parse_cfg_vector(target_tb, "deps"),
         };
-        if target_config.typ != "exe" && target_config.typ != "dll" && target_config.typ != "static" {
-            log(LogLevel::Error, "Type must be exe, dll, or static");
+        if target_config.typ != "exe" && target_config.typ != "dll" 
+        && target_config.typ != "static" && target_config.typ != "object" {
+            log(LogLevel::Error, "Type must be exe, dll, object or static");
             std::process::exit(1);
         }
         tgt.push(target_config);
@@ -296,17 +300,17 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         for target in &tgt {
             let mut src_file_names = TargetConfig::get_src_names(&target.src);
             src_file_names.sort();
-            if src_file_names.is_empty() {
-                log(LogLevel::Error, &format!("No source files found for target: {}", target.name));
-                std::process::exit(1);
-            }
-            for i in 0..src_file_names.len() - 1 {
-                if src_file_names[i] == src_file_names[i + 1] {
-                    log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
-                    log(LogLevel::Error, "Source files must be unique");
-                    log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
-                    std::process::exit(1);
+            if !src_file_names.is_empty() {
+                for i in 0..src_file_names.len() - 1 {
+                    if src_file_names[i] == src_file_names[i + 1] {
+                        log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
+                        log(LogLevel::Error, "Source files must be unique");
+                        log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
+                        std::process::exit(1);
+                    }
                 }
+            } else {
+                log(LogLevel::Warn, &format!("No source files found for target: {}", target.name));
             }
         }
     }

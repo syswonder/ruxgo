@@ -8,7 +8,6 @@ use std::fs;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::process::Command;
-use std::collections::HashSet;
 use crate::hasher;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -86,6 +85,8 @@ impl<'a> Target<'a> {
             bin_path.push_str(".so");
         } else if target_config.typ == "static" {
             bin_path.push_str(".a");
+        } else if target_config.typ == "object" {
+            bin_path.push_str(".o");
         }
         #[cfg(target_os = "windows")]
         let hash_file_path = format!("rukos_bld/{}.win32.hash", &target_config.name);
@@ -101,9 +102,9 @@ impl<'a> Target<'a> {
             }
         }
         for dep_lib in &dependant_libs {
-            if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" {
-                log(LogLevel::Error, "Can add only dlls or static libraries as dependant libs");
-                log(LogLevel::Error, &format!("Target: {} is not a dll or static library", dep_lib.target_config.name));
+            if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" && dep_lib.target_config.typ != "object" {
+                log(LogLevel::Error, "Can add only dlls, static or object libraries as dependant libs");
+                log(LogLevel::Error, &format!("Target: {} is not a dll, static or object library", dep_lib.target_config.name));
                 log(LogLevel::Error, &format!("Target: {} is a {}", dep_lib.target_config.name, dep_lib.target_config.typ));
                 std::process::exit(1);
             }
@@ -334,6 +335,21 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
                 cmd.push_str(obj);
             }
+        } else if self.target_config.typ == "object" {
+            cmd.push_str(&self.build_config.compiler);
+            cmd.push_str(" ");
+            cmd.push_str(&self.target_config.ldflags);
+            cmd.push_str(" -o ");
+            cmd.push_str(&self.bin_path);
+            for obj in objs {
+                cmd.push_str(" ");
+                cmd.push_str(obj);
+            }
+            // link other dependant libraries
+            for dep_target in dep_targets {
+                cmd.push_str(" ");
+                cmd.push_str(&dep_target.bin_path);
+            }
         } else if self.target_config.typ == "exe"{
             if self.os_config.name == "rukos" {
                 cmd.push_str(&self.build_config.ld);
@@ -554,6 +570,9 @@ impl<'a> Target<'a> {
 
     /// Recursively gets all the source files in the given root path
     fn get_srcs(&mut self, root_path: &str, _target_config: &'a TargetConfig) -> Vec<Src> {
+        if root_path.is_empty() {
+            return Vec::new();
+        }
         let root_dir = PathBuf::from(root_path);
         let mut srcs: Vec<Src> = Vec::new();
         let root_entries = std::fs::read_dir(root_dir).unwrap_or_else(|_| {
@@ -608,39 +627,31 @@ impl<'a> Target<'a> {
     }
 
     /// Returns a vector of .h or .hpp files the given C/C++ depends on (local)
-    // For example, if A contains B and B contains A, 
-    // the code recursively processes A and B repeatedly, resulting in an endless loop
     fn get_dependant_includes(&mut self, path: &str) -> Vec<String> {
         let mut result = Vec::new();
-        // HashSet is used to record processed file paths
-        let mut processed_paths = HashSet::new(); 
-        let include_substrings = self.get_include_substrings(path).unwrap_or_else(|| {
-            log(LogLevel::Error, &format!("Failed to get include substrings for file: {}", path));
-            log(LogLevel::Error, &format!("File included from: {:?}", self.dependant_includes.get(path)));
-            std::process::exit(1);
-        });
-        if include_substrings.is_empty() {
-            return result;
-        }
-        for include_substring in include_substrings {
-            let dep_path = format!("{}/{}", &self.target_config.include_dir, &include_substring);
-            if self.dependant_includes.contains_key(&dep_path) {  //? &dep_path to include_substring
-                continue;
+        if let Some(include_substrings) = self.get_include_substrings(path) {
+            if include_substrings.is_empty() {
+                return result;
             }
-            processed_paths.insert(dep_path.clone());
-            result.append(&mut self.get_dependant_includes(&dep_path)); // append recursive includes
-            result.push(dep_path);                                      // append current includes
-            self.dependant_includes.insert(include_substring, result.clone()); //? Consider moving it up
-        }
-        //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
+            for include_substring in include_substrings {
+                let dep_path = format!("{}/{}", &self.target_config.include_dir, &include_substring);
+                if self.dependant_includes.contains_key(&include_substring) {
+                    continue;
+                }
+                result.push(dep_path.clone());                              // append current includes
+                self.dependant_includes.insert(include_substring, result.clone()); 
+                result.append(&mut self.get_dependant_includes(&dep_path)); // append recursive includes
+            }
+            //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
+        };
         result.into_iter().unique().collect()
-
     }
 
     /// Returns a list of substrings that contain "#include \"" in the source file 
     fn get_include_substrings(&self, path: &str) -> Option<Vec<String>> {
         let file = std::fs::File::open(path);
         if file.is_err() {
+            log(LogLevel::Warn, &format!("Failed to get include substrings for file: {}", path));
             return None;
         }
         let mut file = file.unwrap();

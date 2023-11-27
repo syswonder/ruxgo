@@ -16,8 +16,8 @@ A Cargo-like build tool for building C and C++ applications
 * [x] Supported ar and ld commands as optional
 * [x] Supported the feature selection
 * [x] Supported run by qemu
-* [ ] Env cmd
-* [ ] Support different Arch
+* [x] Supported global configurations
+* [x] Supported rukos and different platforms
 
 ## Usage
 
@@ -38,8 +38,9 @@ The help command will show you the following
 Usage: builder_cpp.exe [OPTIONS] [COMMAND]
 
 Commands:
-  init  Initialize a new project Defaults to C++ if no language is specified
-  help  Print this message or the help of the given subcommand(s)
+  init    Initialize a new project Defaults to C++ if no language is specified
+  config  Configuration settings
+  help    Print this message or the help of the given subcommand(s)
 
 Options:
   -b, --build                   Build your project

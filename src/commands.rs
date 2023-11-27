@@ -30,13 +30,13 @@ pub fn clean(targets: &Vec<TargetConfig>) {
         });
         log(LogLevel::Info, &format!("Cleaning: {}", OBJ_DIR));
     }
+    //? consider remove libaxlibc.a
     for target in targets {
         // remove hashes
         #[cfg(target_os = "windows")]
         let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
         #[cfg(target_os = "linux")]
         let hash_path = format!("rukos_bld/{}.linux.hash", &target.name);
-
         if Path::new(&hash_path).exists() {
             fs::remove_file(&hash_path).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
@@ -45,6 +45,7 @@ pub fn clean(targets: &Vec<TargetConfig>) {
         }
         if Path::new(BUILD_DIR).exists() {
             let mut bin_name = String::new();
+            let mut elf_name = String::new();
             bin_name.push_str(BUILD_DIR);
             bin_name.push_str("/");
             bin_name.push_str(&target.name);
@@ -56,9 +57,15 @@ pub fn clean(targets: &Vec<TargetConfig>) {
             }
             #[cfg(target_os = "linux")]
             if target.typ == "exe" {
-                bin_name.push_str("");
+                elf_name = bin_name.clone();
+                bin_name.push_str(".bin");
+                elf_name.push_str(".elf");
             } else if target.typ == "dll" {
                 bin_name.push_str(".so");
+            } else if target.typ == "static" {
+                bin_name.push_str(".a");
+            } else if target.typ == "object" {
+                bin_name.push_str(".o");
             }
             if Path::new(&bin_name).exists() {
                 fs::remove_file(&bin_name).unwrap_or_else(|why| {
@@ -67,6 +74,14 @@ pub fn clean(targets: &Vec<TargetConfig>) {
                 log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
             } else {
                 log(LogLevel::Log, &format!("Binary file does not exist: {}", &bin_name));
+            }
+            if Path::new(&elf_name).exists() {
+                fs::remove_file(&elf_name).unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not remove ELF file: {}", why));
+                });
+                log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
+            } else {
+                log(LogLevel::Log, &format!("ELF file does not exist: {}", &elf_name));
             }
         }
     }
@@ -619,12 +634,7 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
     log(LogLevel::Log, &format!("Project {} initialised", project_name));
 }
 
-pub fn parse_config() -> (
-    BuildConfig,
-    OSConfig,
-    Vec<TargetConfig>,
-    Vec<Package>,
-) {
+pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>) {
     #[cfg(target_os = "linux")]
     let (build_config, os_config, targets) = utils::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
