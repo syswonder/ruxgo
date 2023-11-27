@@ -16,5 +16,7 @@ pub mod utils;
 pub mod hasher;
 /// Contains features related functions
 pub mod features;
-
+/// Contains qemu related functions
 pub mod qemu;
+/// Handles global config
+pub mod global_cfg;

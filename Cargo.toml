@@ -1,6 +1,6 @@
 [package]
 name = "rukoskit"
-version = "0.7.6"
+version = "0.7.7"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"
@@ -16,3 +16,5 @@ sha1 = "0.10.5"
 rayon = "1.7.0"
 indicatif = "0.17.3"
 clap = { version = "4.4.6", features = ["derive"] }
+directories = "5.0.1"
+serde = { version = "1.0.190", features = ["derive"] }

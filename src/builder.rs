@@ -125,7 +125,7 @@ impl<'a> Target<'a> {
                 } else {
                     "".to_string()
                 }  //? consider eliminate or add static!
-            }).collect::<Vec<String>>().into_iter().filter(|x| x != "").collect::<Vec<String>>()));
+            }).collect::<Vec<String>>().into_iter().filter(|x| !x.is_empty()).collect::<Vec<String>>()));
             std::process::exit(1);
         }
         let mut target = Target::<'a> {
@@ -177,7 +177,7 @@ impl<'a> Target<'a> {
                 srcs_needed += 1;
             }
             if gen_cc {
-                src_ccs.push(self.gen_cc(&src));
+                src_ccs.push(self.gen_cc(src));
             }
         }
         if gen_cc {
@@ -214,8 +214,8 @@ impl<'a> Target<'a> {
             //log(LogLevel::Debug, &format!("{} => {}", src.path, to_build));
             if to_build {
                 let warn = src.build(self.build_config, self.os_config, self.target_config, &self.dependant_libs);
-                if warn.is_some() {
-                    warns.lock().unwrap().push(warn.unwrap());
+                if let Some(warn) = warn {
+                    warns.lock().unwrap().push(warn);
                 }
                 src_hash_to_update.lock().unwrap().push(src);
                 log(LogLevel::Info, &format!("Compiled: {}", src.path));
@@ -553,7 +553,7 @@ impl<'a> Target<'a> {
     }
 
     /// Recursively gets all the source files in the given root path
-    fn get_srcs(&mut self, root_path: &str, target_config: &'a TargetConfig) -> Vec<Src> {
+    fn get_srcs(&mut self, root_path: &str, _target_config: &'a TargetConfig) -> Vec<Src> {
         let root_dir = PathBuf::from(root_path);
         let mut srcs: Vec<Src> = Vec::new();
         let root_entries = std::fs::read_dir(root_dir).unwrap_or_else(|_| {
@@ -564,7 +564,7 @@ impl<'a> Target<'a> {
             let entry = entry.unwrap(); 
             if entry.path().is_dir() {
                 let path = entry.path().to_str().unwrap().to_string();
-                srcs.append(&mut self.get_srcs(&path, target_config));
+                srcs.append(&mut self.get_srcs(&path, _target_config));
             } else {
                 if !entry.path().to_str().unwrap().ends_with(".cpp") 
                     && !entry.path().to_str().unwrap().ends_with(".c") 
@@ -602,7 +602,7 @@ impl<'a> Target<'a> {
         obj_name.push_str(OBJ_DIR);
         obj_name.push_str("/");
         obj_name.push_str(&self.target_config.name);
-        obj_name.push_str(&src_name);
+        obj_name.push_str(src_name);
         obj_name.push_str(".o");
         obj_name
     }
@@ -624,13 +624,13 @@ impl<'a> Target<'a> {
         }
         for include_substring in include_substrings {
             let dep_path = format!("{}/{}", &self.target_config.include_dir, &include_substring);
-            if self.dependant_includes.contains_key(&dep_path) {  //? seem to have some trouble
+            if self.dependant_includes.contains_key(&dep_path) {  //? &dep_path to include_substring
                 continue;
             }
             processed_paths.insert(dep_path.clone());
             result.append(&mut self.get_dependant_includes(&dep_path)); // append recursive includes
             result.push(dep_path);                                      // append current includes
-            self.dependant_includes.insert(include_substring, result.clone()); 
+            self.dependant_includes.insert(include_substring, result.clone()); //? Consider moving it up
         }
         //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
         result.into_iter().unique().collect()
@@ -684,7 +684,7 @@ impl Src {
             return result;
         }
 
-        if hasher::is_file_changed(&self.path, &path_hash) {
+        if hasher::is_file_changed(&self.path, path_hash) {
             let result = (true, format!("\tSource file has changed: {}", &self.path));
             return result;
         }
@@ -694,8 +694,8 @@ impl Src {
                 return result;
             }
         }
-        let result = (false, format!("Source file: {} does not need to be built", &self.path));
-        result
+        
+        (false, format!("Source file: {} does not need to be built", &self.path))
     }
     
     /// Builds the source files
@@ -749,11 +749,11 @@ impl Src {
             cmd.push_str(" ");
         }
         //? consider some includes in other packages
-        if build_config.packages.len() > 0 {
+        if !build_config.packages.is_empty() {
             for package in &build_config.packages {
                 cmd.push_str("-I");
                 cmd.push_str(&format!("rukos_bld/includes/{} ", 
-                    &package.split_whitespace().into_iter().next().unwrap().split('/').last().unwrap().replace(",", "")));
+                    &package.split_whitespace().next().unwrap().split('/').last().unwrap().replace(",", "")));
                 cmd.push_str(" ");
             }
         }

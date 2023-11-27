@@ -1,5 +1,7 @@
 use rukoskit::{utils, commands};
 use clap::{Parser, Subcommand};
+use directories::ProjectDirs;
+use rukoskit::global_cfg::GlobalConfig;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -15,7 +17,7 @@ struct Args {
     run: bool,
     /// Initialize a new project. See `init --help` for more info
     #[command(subcommand)]
-    init: Option<Commands>,
+    commands: Option<Commands>,
     /// Arguments to pass to the executable when running
     #[arg(long, num_args(1..))]
     bin_args: Option<Vec<String>>,
@@ -50,13 +52,48 @@ enum Commands {
         /// Initialize a C++ project
         cpp: bool,
     },
+    /// Configuration settings
+    Config {
+        /// Parameter to set currently supported parameters:
+        ///     - `default_compiler`: Sets the default compiler to use
+        ///     - `default_language`: Sets the default language to use
+        ///     - `license`: Sets the license to use. Give the path to the license file
+        #[clap(verbatim_doc_comment)]
+        parameter: String,
+        /// Value to set the parameter to currently supported values:
+        ///     - `compiler`: `gcc`, `clang` Uses g++ or clang++ respectively
+        ///     - `language`: `c`, `cpp`
+        ///     - `license`: `path/to/license/file`
+        #[clap(verbatim_doc_comment)]
+        value: String,
+    },
 }
 
 fn main() {
-    let args = Args::parse();
+    // Add global_config
+    let project_dirs = ProjectDirs::from("com", "RukosApps", "rukos-c").unwrap();
+    let config_dir = project_dirs.config_dir();
+    if !config_dir.exists() {
+        std::fs::create_dir_all(config_dir).unwrap();
+    }
+    let config = config_dir.join("config.toml");
+    if !config.exists() {
+        std::fs::write(
+            &config,
+            r#"
+default_compiler = "gcc"
+default_language = "cpp"
+license = "NONE"
+"#,
+        )
+        .unwrap();
+    }
+    let global_config = GlobalConfig::from_file(&config);
 
-    if args.init.is_some() {
-        match args.init {
+    // Parse args
+    let args = Args::parse();
+    if args.commands.is_some() {
+        match args.commands {
             Some(Commands::Init { name, c, cpp }) => {
                 if c && cpp {
                     utils::log(
@@ -66,21 +103,26 @@ fn main() {
                     std::process::exit(1);
                 }
                 if !c && !cpp {
-                    utils::log(
-                        utils::LogLevel::Warn,
-                        "No language specified. Defaulting to C++",
-                    );
-                    commands::init_project(&name, true);
-                    std::process::exit(0);
+                    commands::init_project(&name, None, &global_config);
                 }
                 if c {
-                    commands::init_project(&name, true);
+                    commands::init_project(&name, Some(true), &global_config);
                 } else {
-                    commands::init_project(&name, false);
+                    commands::init_project(&name, Some(false), &global_config);
                 }
             }
+            Some(Commands::Config { parameter, value }) => {
+                let parameter = parameter.as_str();
+                let value = value.as_str();
+                GlobalConfig::set_defaults(&config, parameter, value);
+                utils::log(
+                    utils::LogLevel::Log,
+                    format!("Setting {} to {}", parameter, value).as_str(),
+                );
+                std::process::exit(0);
+            }
             None => {
-                utils::log(utils::LogLevel::Error, "No init command specified");
+                utils::log(utils::LogLevel::Error, "Rust is broken");
                 std::process::exit(1);
             }
         }

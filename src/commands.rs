@@ -1,4 +1,5 @@
 use crate::builder::Target;
+use crate::global_cfg::GlobalConfig;
 use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
 use crate::qemu;
@@ -252,17 +253,17 @@ pub fn build(
         });
     }
     
-    // Get features
-    let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-    // Construct os to libaxlibc.o;
+    // Construct os.
     if os_config != &OSConfig::default() {
+        // Get features
+        let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
         log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
         build_os(&os_config.platform, &ax_feats_final, &lib_feats_final);
     };
 
     // Construct each target separately.
     for target in targets {
-        let mut tgt = Target::new(build_config, os_config, &target, &targets, &packages);
+        let mut tgt = Target::new(build_config, os_config, target, targets, packages);
         tgt.build(gen_cc);
     }
 
@@ -351,7 +352,7 @@ pub fn run (
     targets: &Vec<TargetConfig>, 
     packages: &Vec<Package>
 ) {
-    let trgt = Target::new(build_config, os_config, exe_target, &targets, &packages);
+    let trgt = Target::new(build_config, os_config, exe_target, targets, packages);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
@@ -361,9 +362,9 @@ pub fn run (
         run_qemu(qemu_args_final, &trgt);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
-        let mut cmd = Command::new(&trgt.bin_path);  //? consider run by qemu
-        if bin_args.is_some() {
-            for arg in bin_args.unwrap() {
+        let mut cmd = Command::new(&trgt.bin_path);
+        if let Some(bin_args) = bin_args {
+            for arg in bin_args {
                 cmd.arg(arg);
             }
         }
@@ -372,7 +373,7 @@ pub fn run (
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
         let output = cmd.output();
-        if !output.is_err() {
+        if output.is_ok() {
             log(LogLevel::Info, &format!("  Success: {}", &trgt.bin_path));
         } else {
             log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
@@ -405,7 +406,7 @@ fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
 }
 
 ///Initialises a new project in the current directory
-pub fn init_project(project_name: &str, is_c: bool) {
+pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfig) {
     log(LogLevel::Log, "Initializing project...");
 
     if Path::new(project_name).exists() {
@@ -442,10 +443,39 @@ pub fn init_project(project_name: &str, is_c: bool) {
             log(LogLevel::Error, &format!("Could not create config file: {}", why));
             std::process::exit(1);
         });
-    let mut sample_config = "[build]\ncompiler = \"g++\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall\"\nlibs = \"\"\ndeps = [\"\"]\n";
-    if is_c {
-        sample_config = "[build]\ncompiler = \"gcc\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall\"\nlibs = \"\"\ndeps = [\"\"]\n";
-    }
+
+    let c_compiler = match config.get_default_compiler().as_str() {
+        "gcc" => "gcc",
+        "clang" => "clang",
+        _ => {
+            log(LogLevel::Error, "Invalid default compiler");
+            std::process::exit(1);
+        }
+    };
+    let cpp_compiler = match config.get_default_compiler().as_str() {
+        "gcc" => "g++",
+        "clang" => "clang++",
+        _ => {
+            log(LogLevel::Error, "Invalid default compiler");
+            std::process::exit(1);
+        }
+    };
+    let sample_cpp_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nlibs = \"\"\ndeps = [\"\"]\n", cpp_compiler);
+
+    let sample_c_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nlibs = \"\"\ndeps = [\"\"]\n", c_compiler);
+
+    let sample_config = match is_c {
+        Some(true) => sample_c_config,
+        Some(false) => sample_cpp_config,
+        None => match config.get_default_language().as_str() {
+            "c" => sample_c_config,
+            "cpp" => sample_cpp_config,
+            _ => {
+                log(LogLevel::Error, "Invalid default language");
+                std::process::exit(1);
+            }
+        },
+    };
     config_file.write_all(sample_config.as_bytes()).unwrap_or_else(|why| {
         log(LogLevel::Error, &format!("Could not write to config file: {}", why));
         std::process::exit(1);
@@ -468,10 +498,19 @@ pub fn init_project(project_name: &str, is_c: bool) {
         });
     }
 
-    //Create main.cpp
-    let mut main_path = src_dir.to_owned() + "/main.cpp";
-    if is_c {
-        main_path = src_dir.to_owned() + "/main.c";
+    //Create main.c or main.cpp
+    let main_path: String;
+    match is_c {
+        Some(true) => main_path = src_dir.to_owned() + "/main.c",
+        Some(false) => main_path = src_dir.to_owned() + "/main.cpp",
+        None => match config.get_default_language().as_str() {
+            "c" => main_path = src_dir.to_owned() + "/main.c",
+            "cpp" => main_path = src_dir.to_owned() + "/main.cpp",
+            _ => {
+                log(LogLevel::Error, "Invalid default language");
+                std::process::exit(1);
+            }
+        },
     }
     if !Path::new(&main_path).exists() {
         let mut main_file = fs::OpenOptions::new()
@@ -482,16 +521,38 @@ pub fn init_project(project_name: &str, is_c: bool) {
                 log(LogLevel::Error, &format!("Could not create main.cpp: {}", why));
                 std::process::exit(1);
             });
-        if is_c {
-            main_file.write_all(b"#include <stdio.h>\n\nint main() {\n\tprintf(\"Hello World!\\n\");\n\treturn 0;\n}").unwrap_or_else(|why| {
+
+        let c_sample_program =
+            b"#include <stdio.h>\n\nint main() {\n\tprintf(\"Hello World!\\n\");\n\treturn 0;\n}";
+        let cpp_sample_program = 
+            b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Hello World!\" << std::endl;\n\treturn 0;\n}";
+        match is_c {
+            Some(true) => main_file.write_all(c_sample_program).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not write to main.c: {}", why));
                 std::process::exit(1);
-            });
-        } else {
-            main_file.write_all(b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Hello World!\" << std::endl;\n\treturn 0;\n}").unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not write to main.cpp: {}", why));
-                std::process::exit(1);
-            });
+            }),
+            Some(false) => main_file
+                .write_all(cpp_sample_program)
+                .unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not write to main.cpp: {}", why));
+                    std::process::exit(1);
+                }),
+            None => match config.get_default_language().as_str() {
+                "c" => main_file.write_all(c_sample_program).unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not write to main.c: {}", why));
+                    std::process::exit(1);
+                }),
+                "cpp" => main_file
+                    .write_all(cpp_sample_program)
+                    .unwrap_or_else(|why| {
+                        log(LogLevel::Error, &format!("Could not write to main.cpp: {}", why));
+                        std::process::exit(1);
+                    }),
+                _ => {
+                    log(LogLevel::Error, "Invalid default language");
+                    std::process::exit(1);
+                }
+            },
         }
     }
 
@@ -506,14 +567,56 @@ pub fn init_project(project_name: &str, is_c: bool) {
                 log(LogLevel::Error, &format!("Could not create .gitignore: {}", why));
                 std::process::exit(1);
             });
-        gitignore_file.write_all(b"rukos_bld\ncompile_commands.json").unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not write to .gitignore: {}", why));
+        gitignore_file
+            .write_all(b"rukos_bld\ncompile_commands.json\n.cache\n")
+            .unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not write to .gitignore: {}", why));
+                std::process::exit(1);
+            });
+    }
+
+    //Create README.md
+    let mut readme_file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(project_name.to_owned() + "/README.md")
+        .unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not create README.md: {}", why));
             std::process::exit(1);
         });
+    readme_file
+        .write_all(format!("# {}", project_name).as_bytes())
+        .unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not write to README.md: {}", why));
+            std::process::exit(1);
+        });
+
+    //Create LICENSE
+    let mut license_file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(project_name.to_owned() + "/LICENSE")
+        .unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not create LICENSE: {}", why));
+            std::process::exit(1);
+        });
+
+    let license = config.get_license();
+    if license.as_str() == "NONE" {
+        license_file.write_all(b"No license").unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not write to LICENSE: {}", why));
+            std::process::exit(1);
+        });
+    } else {
+        license_file
+            .write_all(license.as_bytes())
+            .unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not write to LICENSE: {}", why));
+                std::process::exit(1);
+            });
     }
 
     log(LogLevel::Log, &format!("Project {} initialised", project_name));
-    std::process::exit(0);
 }
 
 pub fn parse_config() -> (
@@ -539,7 +642,7 @@ pub fn parse_config() -> (
 
     let mut num_exe = 0;
     let mut exe_target: Option<&TargetConfig> = None;
-    if targets.len() == 0 {
+    if targets.is_empty() {
         log(LogLevel::Error, "No targets in config");
         std::process::exit(1);
     } else {

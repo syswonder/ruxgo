@@ -155,7 +155,7 @@ impl TargetConfig {
     }
     
     /// Rearrange the input targets
-    fn arrange_targets(targets: &Vec<TargetConfig>) -> Vec<TargetConfig> {
+    fn arrange_targets(targets: Vec<TargetConfig>) -> Vec<TargetConfig> {
         let mut targets = targets.clone();
         let mut i = 0;
         while i < targets.len() {
@@ -277,7 +277,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
     }
 
     // Sort and remove duplicate targets
-    if tgt.len() == 0 {
+    if tgt.is_empty() {
         log(LogLevel::Error, "No targets found");
         std::process::exit(1);
     }
@@ -296,14 +296,14 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         for target in &tgt {
             let mut src_file_names = TargetConfig::get_src_names(&target.src);
             src_file_names.sort();
-            if src_file_names.len() == 0 {
+            if src_file_names.is_empty() {
                 log(LogLevel::Error, &format!("No source files found for target: {}", target.name));
                 std::process::exit(1);
             }
             for i in 0..src_file_names.len() - 1 {
                 if src_file_names[i] == src_file_names[i + 1] {
                     log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
-                    log(LogLevel::Error, &format!("Source files must be unique"));
+                    log(LogLevel::Error, "Source files must be unique");
                     log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
                     std::process::exit(1);
                 }
@@ -311,7 +311,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         }
     }
 
-    let tgt_arranged = TargetConfig::arrange_targets(&tgt);
+    let tgt_arranged = TargetConfig::arrange_targets(tgt);
 
     (build_config, os_config, tgt_arranged)
 }
@@ -572,7 +572,7 @@ impl Package {
             let (pkg_bld_config_toml, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
-            if pkg_bld_config_toml.packages.len() > 0 {
+            if !pkg_bld_config_toml.packages.is_empty() {
                 for foreign_package in Package::parse_packages(&pkg_toml){
                     packages.push(foreign_package);
                 }
