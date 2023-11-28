@@ -142,7 +142,8 @@ impl<'a> Target<'a> {
             dependant_libs,
             packages,
         };
-        target.get_srcs(&target_config.src, target_config);
+        let mut src_exclude:Vec<&str> = target_config.src_excluded.iter().map(|s| s.as_str()).collect();
+        target.get_srcs(&target_config.src, &mut src_exclude);
         target
     }
 
@@ -181,6 +182,9 @@ impl<'a> Target<'a> {
                 src_ccs.push(self.gen_cc(src));
             }
         }
+        if self.dependant_libs.len() > 0 {
+            to_link = true;
+        }
         if gen_cc {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
@@ -195,7 +199,13 @@ impl<'a> Target<'a> {
         }
         if to_link {
             log(LogLevel::Log, &format!("Compiling Target: {}", &self.target_config.name));
-            log(LogLevel::Log, &format!("\t {} of {} source files have to be compiled", srcs_needed, total_srcs));
+            log(
+                LogLevel::Log, 
+                &format!("\t {} of {} source files have to be compiled", srcs_needed, total_srcs)
+            );
+            for dep_lib in &self.dependant_libs {
+                log(LogLevel::Log, &format!("\t {} have to be compiled", dep_lib.bin_path)); 
+            }
             if !Path::new(OBJ_DIR).exists() {
                 fs::create_dir(OBJ_DIR).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Couldn't create obj dir: {}", why));
@@ -326,7 +336,7 @@ impl<'a> Target<'a> {
             cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
         } else if self.target_config.typ == "static" {
-            cmd.push_str(&self.build_config.ar);  // Use ar to archive target files
+            cmd.push_str(&self.build_config.ar);
             cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
             cmd.push_str(" ");
@@ -569,7 +579,7 @@ impl<'a> Target<'a> {
     }
 
     /// Recursively gets all the source files in the given root path
-    fn get_srcs(&mut self, root_path: &str, _target_config: &'a TargetConfig) -> Vec<Src> {
+    fn get_srcs(&mut self, root_path: &str, src_exclude: &mut Vec<&str>) -> Vec<Src> {
         if root_path.is_empty() {
             return Vec::new();
         }
@@ -581,16 +591,25 @@ impl<'a> Target<'a> {
         });
         for entry in root_entries {
             let entry = entry.unwrap(); 
-            if entry.path().is_dir() {
-                let path = entry.path().to_str().unwrap().to_string();
-                srcs.append(&mut self.get_srcs(&path, _target_config));
-            } else {
-                if !entry.path().to_str().unwrap().ends_with(".cpp") 
-                    && !entry.path().to_str().unwrap().ends_with(".c") 
-                {
+            let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
+            if entry.path().is_dir() {  
+                let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
+                if skip_dir {
+                    log(LogLevel::Log, &format!("Skipping directory: {}", path));
+                    src_exclude.retain(|&excluded| !path.contains(excluded));
                     continue;
                 }
-                let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
+                srcs.append(&mut self.get_srcs(&path, src_exclude));
+            } else {
+                let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
+                if skip_file {
+                    log(LogLevel::Log, &format!("Skipping file: {}", path));
+                    src_exclude.retain(|&excluded| !path.ends_with(excluded));
+                    continue;
+                }
+                if !path.ends_with(".cpp") && !path.ends_with(".c") {
+                    continue;
+                }
                 self.add_src(path);
             }
         }

@@ -399,7 +399,6 @@ pub fn run (
 
 fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
     log(LogLevel::Log, "Running on qemu...");
-    log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
     let mut cmd = String::new();
     for qemu_arg in qemu_args {
         cmd.push_str(&qemu_arg);

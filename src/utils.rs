@@ -119,6 +119,7 @@ pub struct QemuConfig {
 pub struct TargetConfig {
     pub name: String,
     pub src: String,
+    pub src_excluded: Vec<String>,
     pub include_dir: String,
     pub typ: String,
     pub cflags: String,
@@ -265,6 +266,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         let target_config = TargetConfig {
             name: parse_cfg_string(target_tb, "name", ""),
             src: parse_cfg_string(target_tb, "src", ""),
+            src_excluded: parse_cfg_vector(target_tb, "src_excluded"),
             include_dir: parse_cfg_string(target_tb, "include_dir", ""),
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
