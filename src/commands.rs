@@ -374,7 +374,7 @@ pub fn run (
     }
     if os_config.platform.qemu != QemuConfig::default() {
         let (qemu_args_final, _) = qemu::config_qemu(&os_config.platform, &trgt);
-        run_qemu(qemu_args_final, &trgt);
+        run_qemu(qemu_args_final);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
         let mut cmd = Command::new(&trgt.bin_path);
@@ -397,7 +397,7 @@ pub fn run (
     }
 }
 
-fn run_qemu(qemu_args: Vec<String>, trgt: &Target) {
+fn run_qemu(qemu_args: Vec<String>) {
     log(LogLevel::Log, "Running on qemu...");
     let mut cmd = String::new();
     for qemu_arg in qemu_args {
@@ -647,6 +647,11 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
         std::env::set_var("AX_MODE", &os_config.platform.mode);
         std::env::set_var("AX_LOG", &os_config.platform.log);
         std::env::set_var("AX_TARGET", &os_config.platform.target);
+        // Ip and gw is for QEMU user netdev
+        if os_config.platform.qemu != QemuConfig::default() {
+            std::env::set_var("AX_IP", &os_config.platform.qemu.ip);
+            std::env::set_var("AX_GW", &os_config.platform.qemu.gw);
+        }
     } 
 
     let mut num_exe = 0;

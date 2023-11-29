@@ -112,6 +112,8 @@ pub struct QemuConfig {
     pub qemu_log: String,
     pub net_dump: String,
     pub net_dev: String,
+    pub ip: String,
+    pub gw: String,
 }
 
 /// Struct describing the target config of the local project
@@ -385,8 +387,10 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
         let qemu_log = parse_cfg_string(&qemu_table, "qemu_log", "n");
         let net_dump = parse_cfg_string(&qemu_table, "net_dump", "n");
         let net_dev = parse_cfg_string(&qemu_table, "net_dev", "user");
+        let ip = parse_cfg_string(&qemu_table, "ip",  "10.0.2.15");
+        let gw = parse_cfg_string(&qemu_table, "gw", "10.0.2.2");
 
-        QemuConfig {blk, net, graphic, bus, disk_img, qemu_log, net_dump, net_dev}
+        QemuConfig {blk, net, graphic, bus, disk_img, qemu_log, net_dump, net_dev, ip, gw}
     } else {
         log(LogLevel::Error, "Qemu is not a table");
         std::process::exit(1);
