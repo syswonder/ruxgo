@@ -14,25 +14,55 @@ static BUILD_DIR: &str = "rukos_bld/bin";
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "rukos_bld/obj_linux";
+static TARGET_DIR: &str = "rukos_bld/target";
 
 /// Cleans the local targets
 /// # Arguments
 /// * `targets` - A vector of targets to clean
-pub fn clean(targets: &Vec<TargetConfig>) {
+pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
     if Path::new(ROOT_DIR).exists() {
-        fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {  //? have some differences
+        fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
         });
     }
+    // remove obj
     if Path::new(OBJ_DIR).exists() {
         fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
         });
         log(LogLevel::Info, &format!("Cleaning: {}", OBJ_DIR));
     }
-    //? consider remove libaxlibc.a
+    // remove os
+    if Path::new(TARGET_DIR).exists() {
+        fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
+        });
+        log(LogLevel::Info, &format!("Cleaning: {}", TARGET_DIR));
+    }
+    // remove ulib
+    let libc_hash_pash = "rukos_bld/libc.linux.hash";
+    if Path::new(libc_hash_pash).exists() {
+        fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
+        });
+        log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
+    }
+    if Path::new(BUILD_DIR).exists() {
+        let mut ulib_bin_name = String::from("");
+        if os_config.ulib == "axlibc" {
+            ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
+        }
+        if Path::new(&ulib_bin_name).exists() {
+            fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+            });
+            log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
+        } else {
+            log(LogLevel::Log, &format!("Binary file does not exist: {}", &ulib_bin_name));
+        }
+    }
+    // romove hashes and bins of other targets
     for target in targets {
-        // remove hashes
         #[cfg(target_os = "windows")]
         let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
         #[cfg(target_os = "linux")]
@@ -133,8 +163,8 @@ pub fn build(
     gen_vsc: bool, 
     packages: &Vec<Package>
 ) {
-    if !Path::new("rukos_bld").exists() {
-        fs::create_dir("rukos_bld").unwrap_or_else(|why| {
+    if !Path::new(ROOT_DIR).exists() {
+        fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not create rukos_bld directory: {}", why));
             std::process::exit(1);
         });
@@ -268,15 +298,19 @@ pub fn build(
         });
     }
     
-    // Construct os.
+    // Construct os and ulib
     if os_config != &OSConfig::default() {
-        // Get features
+        // get features
         let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
         log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
         build_os(&os_config.platform, &ax_feats_final, &lib_feats_final);
+        // construct ulib
+        if os_config.ulib == "axlibc" {
+            build_ulib(build_config, os_config, gen_cc, "libc");
+        }
     };
 
-    // Construct each target separately.
+    // Construct each target separately
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets, packages);
         tgt.build(gen_cc);
@@ -302,12 +336,6 @@ pub fn build(
 
 /// Builds the specified os
 fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
-    if !Path::new(BUILD_DIR).exists() {
-        fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
-            std::process::exit(1);
-        }) 
-    }
     let target = format!("--target {}", platform_config.target);
     let target_dir = format!("--target-dir {}/target", ROOT_DIR);
     let mode = format!("--{}", platform_config.mode);
@@ -338,6 +366,30 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
         std::process::exit(1);
     }
 } 
+
+/// Builds the specified ulib
+fn build_ulib(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool, name: &str) {
+    if !Path::new(BUILD_DIR).exists() {
+        fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
+            std::process::exit(1);
+        })
+    }
+    let ulib_tgt = TargetConfig {
+        name: name.to_string(),
+        src: format!("{}/{}/ulib/axlibc/c", env!("HOME"), os_config.name),
+        src_excluded: Vec::new(),
+        include_dir: format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name),
+        typ: "static".to_string(),
+        cflags: String::from(""),
+        ldflags: format!("{}-linux-musl-ar rcs", os_config.platform.arch),
+        deps: Vec::new(),
+    };
+    let ulib_targets = Vec::new();
+    let ulib_packages = Vec::new();
+    let mut tgt = Target::new(build_config, os_config, &ulib_tgt, &ulib_targets, &ulib_packages);
+    tgt.build(gen_cc);
+}
 
 /// Runs the exe target
 /// # Arguments
@@ -384,6 +436,7 @@ pub fn run (
     }
 }
 
+/// Runs the bin by qemu
 fn run_qemu(qemu_args: Vec<String>) {
     log(LogLevel::Log, "Running on qemu...");
     let mut cmd = String::new();

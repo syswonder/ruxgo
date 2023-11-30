@@ -20,8 +20,9 @@ static BUILD_DIR: &str = "rukos_bld/bin";
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "rukos_bld/obj_linux";
-// Add rust_lib and include_path of axlibc
+// Add rust_lib and c_lib
 static RUST_LIB: &str = "libaxlibc.a"; 
+static C_LIB: &str = "libc.a";
 
 /// Represents a target
 pub struct Target<'a> {
@@ -363,7 +364,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
                 // add os_ldflags
                 let mut os_ldflags = String::new();
-                os_ldflags.push_str(" -nostdlib -static -no-pie --gc-sections");
+                os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
                 let ld_script = format!(
                     "{}/{}/modules/axhal/linker_{}.lds",
                      env!("HOME"), self.os_config.name, self.os_config.platform.name
@@ -393,6 +394,9 @@ impl<'a> Target<'a> {
                         cmd.push_str(".a");
                     }
                 }
+                // link ulib
+                cmd.push_str(" ");
+                cmd.push_str(&format!("{}/{}", BUILD_DIR, C_LIB));
                 // link os
                 cmd.push_str(" ");
                 cmd.push_str(&format!("{}/target/{}/{}/{}", 
@@ -461,6 +465,15 @@ impl<'a> Target<'a> {
             .arg(&cmd)
             .output()
             .expect("failed to execute process");
+        if output.status.success() {
+            log(LogLevel::Info, "  Linking successful");
+            hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
+        } else {
+            log(LogLevel::Error, "  Linking failed");
+            log(LogLevel::Error, &format!(" Command: {}", &cmd));
+            log(LogLevel::Error, &format!("  Error: {}", String::from_utf8_lossy(&output.stderr)));
+            std::process::exit(1);
+        }
         if !cmd_bin.is_empty() {
             let output_bin = Command::new("sh")
                 .arg("-c")
@@ -477,18 +490,8 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
              }
         }
-        if output.status.success() {
-            log(LogLevel::Info, "  Linking successful");
-            hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
-        } else {
-            log(LogLevel::Error, "  Linking failed");
-            log(LogLevel::Error, &format!(" Command: {}", &cmd));
-            log(LogLevel::Error, &format!("  Error: {}", String::from_utf8_lossy(&output.stderr)));
-            std::process::exit(1);
-        }
     }
 
-    // "command": "c++ -c -o ./obj_bin/app.o -I./Engine/src/include -g -Wall -Wunused -I/usr/include/freetype2 -I/usr/include/libpng16 -I/usr/include/harfbuzz -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/sysprof-4 -pthread -std=c++17 -fPIC ./Engine/src/core/app.cpp",
     /// Generates the compile_commands.json file for a src
     fn gen_cc(&self, src: &Src) -> String {
         let mut cc = String::new();
@@ -749,8 +752,8 @@ impl Src {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
         let mut os_cflags = String::new();
-        // Add features of rukos
-        if !os_config.name.is_empty() {
+        // Add os_cflags
+        if !os_config.name.is_empty() && os_config.ulib == "axlibc"{
             let (_, lib_feats) = cfg_feat(os_config);
             // generate the preprocessing macro definition
             for lib_feat in lib_feats {
@@ -761,9 +764,7 @@ impl Src {
             if os_config.platform.mode == "release" {
                 os_cflags.push_str(" -O3");
             }
-            // add -nostdinc -fno-builtin -ffreestanding -Wall
             os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
-            // add includes of axlibc
             os_cflags.push_str(" -I");
             os_cflags.push_str(&format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name));
             os_cflags.push_str(" ");

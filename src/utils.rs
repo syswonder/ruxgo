@@ -84,6 +84,7 @@ pub struct BuildConfig {
 pub struct OSConfig {
     pub name: String,
     pub features: Vec<String>,
+    pub ulib: String,
     pub platform: PlatformConfig,
 }
 
@@ -239,11 +240,13 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         if let Some(os_table) = os.as_table() {
             let name = parse_cfg_string(&os_table, "name", "");
             let features = parse_cfg_vector(&os_table, "services");
+            let ulib = parse_cfg_string(&os_table, "ulib", "axlibc");
             // Parse platform (if empty, it is the default value)
             let platform = parse_platform(&os_table);
             os_config = OSConfig {
                 name,
                 features,
+                ulib,
                 platform,
             };
         } else {
@@ -269,7 +272,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             name: parse_cfg_string(target_tb, "name", ""),
             src: parse_cfg_string(target_tb, "src", ""),
             src_excluded: parse_cfg_vector(target_tb, "src_excluded"),
-            include_dir: parse_cfg_string(target_tb, "include_dir", ""),
+            include_dir: parse_cfg_string(target_tb, "include_dir", "NULL"),
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
             ldflags: parse_cfg_string(target_tb, "ldflags", ""),
