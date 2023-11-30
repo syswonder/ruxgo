@@ -303,41 +303,27 @@ pub fn build(
 /// Builds the specified os
 fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
     if !Path::new(BUILD_DIR).exists() {
-        let cmd = format!("mkdir -p {}", BUILD_DIR);
-        let output = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .expect("failed to execute process");
-        if !output.status.success() {
-            log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
-        }
+        fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
+            std::process::exit(1);
+        }) 
     }
-    let mut cmd = String::new();
-    cmd.push_str("cargo build");
-    cmd.push_str(format!(" --target {}", platform_config.target).as_str());
-    cmd.push_str(format!(" --target-dir {}/target", ROOT_DIR).as_str());
-    cmd.push_str(format!(" --{} -p axlibc", platform_config.mode).as_str());
+    let target = format!("--target {}", platform_config.target);
+    let target_dir = format!("--target-dir {}/target", ROOT_DIR);
+    let mode = format!("--{}", platform_config.mode);
+    let axlibc = "-p axlibc";
     // add verbose
     let verbose = match platform_config.v.as_str() {
         "1" => "-v",
         "2" => "-vv",
         _ => "",
     };
-    cmd.push_str(" ");
-    cmd.push_str(verbose);
     // add features
-    cmd.push_str(" --features ");
-    cmd.push_str("\"");
-    for ax_feat in ax_feats {
-        cmd.push_str(ax_feat);
-        cmd.push_str(" ");
-    }
-    for lib_feat in lib_feats {
-        cmd.push_str(lib_feat);
-        cmd.push_str(" ");
-    }
-    cmd.push_str("\"");
+    let features = [&ax_feats[..], &lib_feats[..]].concat().join(" ");
+    let cmd = format!(
+        "cargo build {} {} {} {} {} --features \"{}\"",
+        target, target_dir, mode, axlibc, verbose, features
+    );
     log(LogLevel::Debug, &format!("Command: {}", cmd));
     let output = Command::new("sh")
         .arg("-c")
@@ -355,6 +341,7 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
 
 /// Runs the exe target
 /// # Arguments
+/// * `os_config` - The os configuration
 /// * `build_config` - The local build configuration
 /// * `exe_target` - The exe target to run
 /// * `targets` - A vector of targets

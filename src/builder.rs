@@ -20,6 +20,8 @@ static BUILD_DIR: &str = "rukos_bld/bin";
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "rukos_bld/obj_linux";
+// Add rust_lib and include_path of axlibc
+static RUST_LIB: &str = "libaxlibc.a"; 
 
 /// Represents a target
 pub struct Target<'a> {
@@ -94,7 +96,7 @@ impl<'a> Target<'a> {
         let hash_file_path = format!("rukos_bld/{}.linux.hash", &target_config.name);
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
-        for dependant_lib in &target_config.deps { // find current target's dependant_lib
+        for dependant_lib in &target_config.deps {
             for target in targets {
                 if target.name == *dependant_lib {
                     dependant_libs.push(Target::new(build_config, os_config, target, targets, packages));
@@ -151,8 +153,8 @@ impl<'a> Target<'a> {
     /// # Arguments
     /// * `gen_cc` - Generate compile_commands.json
     pub fn build(&mut self, gen_cc: bool) {
-        if !Path::new("rukos_bld").exists() {
-            std::fs::create_dir("rukos_bld").unwrap_or_else(|why| {
+        if !Path::new(ROOT_DIR).exists() {
+            std::fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Couldn't create rukos_bld directory: {}", why));
                 std::process::exit(1);
             });
@@ -167,10 +169,13 @@ impl<'a> Target<'a> {
             }
         }
         let mut to_link: bool = false;
-        let mut link_causer: Vec<&str> = Vec::new();  // Trace the linked source files
-        let mut srcs_needed = 0;   // add progress bar
+        let mut link_causer: Vec<&str> = Vec::new();  // trace the linked source files
+        let mut srcs_needed = 0;
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
+        if self.srcs.is_empty() && self.dependant_libs.len() > 0 {
+            to_link = true;
+        }
         for src in &self.srcs {
             let (to_build, _) = src.to_build(&self.path_hash);
             if to_build {
@@ -181,9 +186,6 @@ impl<'a> Target<'a> {
             if gen_cc {
                 src_ccs.push(self.gen_cc(src));
             }
-        }
-        if self.dependant_libs.len() > 0 {
-            to_link = true;
         }
         if gen_cc {
             let mut file = std::fs::OpenOptions::new()
@@ -204,7 +206,7 @@ impl<'a> Target<'a> {
                 &format!("\t {} of {} source files have to be compiled", srcs_needed, total_srcs)
             );
             for dep_lib in &self.dependant_libs {
-                log(LogLevel::Log, &format!("\t {} have to be compiled", dep_lib.bin_path)); 
+                log(LogLevel::Log, &format!("\t {} need to be linked", dep_lib.bin_path)); 
             }
             if !Path::new(OBJ_DIR).exists() {
                 fs::create_dir(OBJ_DIR).unwrap_or_else(|why| {
@@ -215,11 +217,11 @@ impl<'a> Target<'a> {
             log(LogLevel::Log, &format!("Target: {} is up to date", &self.target_config.name));
             return;
         }
+        // Add progress bar
         let progress_bar = Arc::new(Mutex::new(ProgressBar::new(srcs_needed as u64)));
         let num_complete = Arc::new(Mutex::new(0));
         let src_hash_to_update = Arc::new(Mutex::new(Vec::new()));
         let warns = Arc::new(Mutex::new(Vec::new()));
-        // If the level is not "Info" or "Debug", update the compilation progress bar
         self.srcs.par_iter().for_each(|src| {
             let (to_build, _message) = src.to_build(&self.path_hash);
             //log(LogLevel::Debug, &format!("{} => {}", src.path, to_build));
@@ -230,6 +232,7 @@ impl<'a> Target<'a> {
                 }
                 src_hash_to_update.lock().unwrap().push(src);
                 log(LogLevel::Info, &format!("Compiled: {}", src.path));
+                // If the RUKOS_LOG_LEVEL is not "Info" or "Debug", update the compilation progress bar
                 let log_level = std::env::var("RUKOS_LOG_LEVEL").unwrap_or("".to_string());
                 if !(log_level == "Info" || log_level == "Debug") {
                     let mut num_complete = num_complete.lock().unwrap();
@@ -237,8 +240,8 @@ impl<'a> Target<'a> {
                     let progress_bar = progress_bar.lock().unwrap();
                     let template = format!("    {}{}", "Compiling :".cyan(), "[{bar:40.}] {pos}/{len} ({percent}%) {msg}[{elapsed_precise}] ");
                     progress_bar.set_style(ProgressStyle::with_template(&template)
-                    .unwrap()
-                    .progress_chars("=>-"));
+                        .unwrap()
+                        .progress_chars("=>-"));
                     progress_bar.inc(1);
                 }
             }
@@ -269,21 +272,15 @@ impl<'a> Target<'a> {
     }
 
     /// Links the dependant libs(or targets)
-    /// #### Todo: Consider using the rust-lld command link libs...
     /// # Arguments
     /// * `dep_targets` - The targets that this target depends on
     pub fn link(&self, dep_targets: &Vec<Target>) {
         let mut objs = Vec::new();
         if !Path::new(BUILD_DIR).exists() {
-            let cmd = format!("mkdir -p {}", BUILD_DIR);
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(cmd)
-                .output()
-                .expect("failed to execute process");
-            if !output.status.success() {
-                log(LogLevel::Error, &format!("Couldn't create build dir: {}", String::from_utf8_lossy(&output.stderr)));
-            }
+            fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
+                std::process::exit(1);
+            }) 
         }
         for src in &self.srcs {
             objs.push(&src.obj_name);
@@ -361,11 +358,25 @@ impl<'a> Target<'a> {
                 cmd.push_str(&dep_target.bin_path);
             }
         } else if self.target_config.typ == "exe"{
-            if self.os_config.name == "rukos" {
+            if !self.os_config.name.is_empty() {
                 cmd.push_str(&self.build_config.ld);
                 cmd.push_str(" ");
-                cmd.push_str(&self.target_config.ldflags);
-
+                // add os_ldflags
+                let mut os_ldflags = String::new();
+                os_ldflags.push_str(" -nostdlib -static -no-pie --gc-sections");
+                let ld_script = format!(
+                    "{}/{}/modules/axhal/linker_{}.lds",
+                     env!("HOME"), self.os_config.name, self.os_config.platform.name
+                );
+                os_ldflags.push_str(&format!(" -T{}", &ld_script));
+                if self.os_config.platform.arch == "x86_64".to_string() {
+                    os_ldflags.push_str(" --no-relax");
+                }
+                let mut ldflags = String::new();
+                ldflags.push_str(&self.target_config.ldflags);
+                ldflags.push_str(" ");
+                ldflags.push_str(&os_ldflags);
+                cmd.push_str(&ldflags);
                 // link other dependant libraries
                 for dep_target in dep_targets {
                     cmd.push_str(" ");
@@ -384,8 +395,8 @@ impl<'a> Target<'a> {
                 }
                 // link os
                 cmd.push_str(" ");
-                cmd.push_str(&format!("{}/target/{}/{}/libaxlibc.a", 
-                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode));
+                cmd.push_str(&format!("{}/target/{}/{}/{}", 
+                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUST_LIB));
                 // link other obj
                 for obj in objs {
                     cmd.push_str(" ");
@@ -613,7 +624,6 @@ impl<'a> Target<'a> {
                 self.add_src(path);
             }
         }
-        //log(LogLevel::Info, &format!("  all srcs: {:?}", &self.srcs));
         srcs
     }
 
@@ -738,47 +748,54 @@ impl Src {
     ) -> Option<String> {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler);
-        cmd.push_str(" ");
+        let mut os_cflags = String::new();
         // Add features of rukos
-        if os_config.name == "rukos" {
+        if !os_config.name.is_empty() {
             let (_, lib_feats) = cfg_feat(os_config);
-            // Generate the preprocessing macro definition
+            // generate the preprocessing macro definition
             for lib_feat in lib_feats {
                 let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
-                cmd.push_str(" -DAX_CONFIG_");
-                cmd.push_str(&processed_lib_feat);
+                os_cflags.push_str(&format!(" -DAX_CONFIG_{}", &processed_lib_feat));
             }
-            cmd.push_str(" -DAX_CONFIG_");
-            cmd.push_str(os_config.platform.log.to_uppercase().as_str());
-            cmd.push_str(" ");
+            os_cflags.push_str(&format!(" -DAX_CONFIG_{}", os_config.platform.log.to_uppercase()));
             if os_config.platform.mode == "release" {
-                cmd.push_str(" -O3 ");
+                os_cflags.push_str(" -O3");
             }
+            // add -nostdinc -fno-builtin -ffreestanding -Wall
+            os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
+            // add includes of axlibc
+            os_cflags.push_str(" -I");
+            os_cflags.push_str(&format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name));
+            os_cflags.push_str(" ");
             if os_config.platform.arch == "riscv64" {
-                cmd.push_str(" -march=rv64gc -mabi=lp64d -mcmodel=medany ");
+                os_cflags.push_str(" -march=rv64gc -mabi=lp64d -mcmodel=medany");
             }
             if !os_config.features.contains(&"fp_simd".to_string()) {
                 if os_config.platform.arch == "x86_64".to_string() {
-                    cmd.push_str(" -mno-sse ");
+                    os_cflags.push_str(" -mno-sse");
                 } else if os_config.platform.arch == "aarch64".to_string() {
-                    cmd.push_str(" -mgeneral-regs-only ");
+                    os_cflags.push_str(" -mgeneral-regs-only");
                 }
             }
         }
-        cmd.push_str(&target_config.cflags);
+        let mut cflags = String::new();
+        cflags.push_str(&os_cflags);
+        cflags.push_str(" ");
+        cflags.push_str(&target_config.cflags);
+        cmd.push_str(" ");
+        cmd.push_str(&cflags);
         cmd.push_str(" -I");
         cmd.push_str(&target_config.include_dir);
-
         cmd.push_str(" -o ");
         cmd.push_str(&self.obj_name);
 
-        //? consider some includes in other depandant_libs
+        // consider some includes in other depandant_libs
         for dependant_lib in dependant_libs {
             cmd.push_str(" -I");
             cmd.push_str(dependant_lib.target_config.include_dir.as_str());
             cmd.push_str(" ");
         }
-        //? consider some includes in other packages
+        // consider some includes in other packages
         if !build_config.packages.is_empty() {
             for package in &build_config.packages {
                 cmd.push_str("-I");

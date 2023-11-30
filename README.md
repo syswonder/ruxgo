@@ -18,6 +18,7 @@ A Cargo-like build tool for building C and C++ applications
 * [x] Supported run by qemu
 * [x] Supported global configurations
 * [x] Supported rukos and different platforms
+* [x] Supported the exclued src in target
 
 ## Usage
 

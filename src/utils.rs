@@ -198,7 +198,7 @@ impl TargetConfig {
 /// * `path` - The path to the config file
 /// * `check_dup_src` - If true, the function will check for duplicately named source files
 pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, Vec<TargetConfig>) {
-    // open toml file and parse it into a string
+    // Open toml file and parse it into a string
     let mut file = File::open(path).unwrap_or_else(|_| {
         log(LogLevel::Error, &format!("Could not open config file: {}", path));
         std::process::exit(1);
@@ -290,7 +290,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         std::process::exit(1);
     }
 
-    //Check for duplicate target names
+    // Check for duplicate target names
     for i in 0..tgt.len() - 1 {
         for j in i + 1..tgt.len() {
             if tgt[i].name == tgt[j].name {
