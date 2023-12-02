@@ -334,8 +334,6 @@ impl<'a> Target<'a> {
             cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
         } else if self.target_config.typ == "static" {
-            cmd.push_str(&self.build_config.ar);
-            cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
             cmd.push_str(" ");
             cmd.push_str(&self.bin_path);
@@ -360,8 +358,6 @@ impl<'a> Target<'a> {
             }
         } else if self.target_config.typ == "exe"{
             if !self.os_config.name.is_empty() {
-                cmd.push_str(&self.build_config.ld);
-                cmd.push_str(" ");
                 // add os_ldflags
                 let mut os_ldflags = String::new();
                 os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
@@ -378,6 +374,18 @@ impl<'a> Target<'a> {
                 ldflags.push_str(" ");
                 ldflags.push_str(&os_ldflags);
                 cmd.push_str(&ldflags);
+                // link ulib
+                cmd.push_str(" ");
+                cmd.push_str(&format!("{}/{}", BUILD_DIR, C_LIB));
+                // link os
+                cmd.push_str(" ");
+                cmd.push_str(&format!("{}/target/{}/{}/{}", 
+                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUST_LIB));
+                // link other obj
+                for obj in objs {
+                    cmd.push_str(" ");
+                    cmd.push_str(obj);
+                }
                 // link other dependant libraries
                 for dep_target in dep_targets {
                     cmd.push_str(" ");
@@ -393,18 +401,6 @@ impl<'a> Target<'a> {
                         cmd.push_str(&target.name);
                         cmd.push_str(".a");
                     }
-                }
-                // link ulib
-                cmd.push_str(" ");
-                cmd.push_str(&format!("{}/{}", BUILD_DIR, C_LIB));
-                // link os
-                cmd.push_str(" ");
-                cmd.push_str(&format!("{}/target/{}/{}/{}", 
-                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUST_LIB));
-                // link other obj
-                for obj in objs {
-                    cmd.push_str(" ");
-                    cmd.push_str(obj);
                 }
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.elf_path);
@@ -427,33 +423,40 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
                 // link other dependant libraries
                 for dep_target in dep_targets {
-                    cmd.push_str(" -I");
-                    cmd.push_str(&dep_target.target_config.include_dir);
-                    cmd.push_str(" ");
-                    let lib_name = dep_target.target_config.name.clone();
-                    let lib_name = lib_name.replace("lib", "-l");
-                    cmd.push_str(&lib_name);
-                    cmd.push_str(" ");
+                    if dep_target.target_config.typ == "object" {
+                        cmd.push_str(&dep_target.bin_path);
+                    } else {
+                        cmd.push_str(" -I");
+                        cmd.push_str(&dep_target.target_config.include_dir);
+                        cmd.push_str(" ");
+                        let lib_name = dep_target.target_config.name.clone();
+                        let lib_name = lib_name.replace("lib", "-l");
+                        cmd.push_str(&lib_name);
+                        cmd.push_str(" ");
+                        // added -L library search path
+                        cmd.push_str(" -L");
+                        cmd.push_str(BUILD_DIR);
+                        cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+                        cmd.push_str(" ");
+                    }
                 }
                 // Get libraries as packages
                 for package in self.packages {
                     for target in &package.target_configs {
+                        //? consider object type
                         cmd.push_str(" -I");
                         cmd.push_str(&target.include_dir);
                         cmd.push_str(" ");
-
                         let lib_name = target.name.clone();
                         let lib_name = lib_name.replace("lib", "-l");
                         cmd.push_str(&lib_name);
                         cmd.push_str(" ");
+                        // added -L library search path
+                        cmd.push_str(" -L");
+                        cmd.push_str(BUILD_DIR);
+                        cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+                        cmd.push_str(" ");
                     }
-                }
-                // Added -L library search path
-                if self.packages.len() + self.dependant_libs.len() > 0 {
-                    cmd.push_str(" -L");
-                    cmd.push_str(BUILD_DIR);
-                    cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
-                    cmd.push_str(" ");
                 }
             }
         }

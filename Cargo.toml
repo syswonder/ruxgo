@@ -1,6 +1,6 @@
 [package]
 name = "rukoskit"
-version = "0.7.12"
+version = "0.7.13"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"

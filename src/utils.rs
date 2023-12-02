@@ -74,8 +74,6 @@ pub fn log(level: LogLevel, message: &str) {
 #[derive(Debug)]
 pub struct BuildConfig {
     pub compiler: String,
-    pub ar: String,
-    pub ld: String,
     pub packages: Vec<String>,
 }
 
@@ -227,10 +225,8 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         log(LogLevel::Error, "Compiler is not a string");
         std::process::exit(1);
         }).to_string();
-    let ar = parse_cfg_string(build, "ar", "");
-    let ld = parse_cfg_string(build, "ld", "");
     let packages = parse_cfg_vector(build, "packages");
-    let build_config = BuildConfig {compiler, ar, ld, packages};
+    let build_config = BuildConfig {compiler, packages};
 
     // Parse os (optional)
     let empty_os = Value::Table(toml::map::Map::default());
@@ -531,8 +527,6 @@ impl Package {
         let mut branch = String::new();
         let mut build_config = BuildConfig {
             compiler: String::new(),
-            ar: String::new(),
-            ld: String::new(),
             packages: Vec::new(),
         };
         let mut target_configs = Vec::new();

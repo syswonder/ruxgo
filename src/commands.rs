@@ -30,14 +30,14 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
         fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
         });
-        log(LogLevel::Info, &format!("Cleaning: {}", OBJ_DIR));
+        log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
     }
     // remove os
     if Path::new(TARGET_DIR).exists() {
         fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
         });
-        log(LogLevel::Info, &format!("Cleaning: {}", TARGET_DIR));
+        log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
     }
     // remove ulib
     let libc_hash_pash = "rukos_bld/libc.linux.hash";
