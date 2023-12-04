@@ -108,6 +108,8 @@ pub struct QemuConfig {
     pub graphic: String,
     pub bus: String,
     pub disk_img: String,
+    pub v9p: String,
+    pub v9p_path: String,
     pub accel: String,
     pub qemu_log: String,
     pub net_dump: String,
@@ -168,6 +170,13 @@ impl QemuConfig {
             qemu_args.push(format!("virtio-blk-{},drive=disk0", vdev_suffix));
             qemu_args.push("-drive".to_string());
             qemu_args.push(format!("id=disk0,if=none,format=raw,file={}", self.disk_img));
+        }
+        // v9p
+        if self.v9p == "y" {
+            qemu_args.push("-fsdev".to_string());
+            qemu_args.push(format!("local,id=myid,path={},security_model=none", self.v9p_path));
+            qemu_args.push("-device".to_string());
+            qemu_args.push(format!("virtio-9p-{},fsdev=myid,mount_tag=rootfs", vdev_suffix));
         }
         // net
         if self.net == "y" {
@@ -488,6 +497,8 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
             _ => "mmio".to_string()
         };
         let disk_img = parse_cfg_string(&qemu_table, "disk_img", "disk.img");
+        let v9p = parse_cfg_string(&qemu_table, "v9p", "n");
+        let v9p_path = parse_cfg_string(&qemu_table, "v9p_path", "./");
         let accel_pre = match Command::new("uname").arg("-r").output() {
             Ok(output) => {
                 let kernel_version = String::from_utf8_lossy(&output.stdout).to_lowercase();
@@ -509,7 +520,7 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
         let gw = parse_cfg_string(&qemu_table, "gw", "10.0.2.2");
         let args = parse_cfg_string(&qemu_table, "args", "");
         let envs = parse_cfg_string(&qemu_table, "envs", "");
-        QemuConfig {blk, net, graphic, bus, disk_img, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs}
+        QemuConfig {blk, net, graphic, bus, disk_img, v9p, v9p_path, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs}
     } else {
         log(LogLevel::Error, "Qemu is not a table");
         std::process::exit(1);

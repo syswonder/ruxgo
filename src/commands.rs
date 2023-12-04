@@ -412,6 +412,15 @@ pub fn run (
     }
     if os_config.platform.qemu != QemuConfig::default() {
         let (qemu_args_final, _) = QemuConfig::config_qemu(&os_config.platform.qemu, &os_config.platform, &trgt);
+        // enable virtual disk image
+        if os_config.platform.qemu.blk == "y" {
+            let path = Path::new(&os_config.platform.qemu.disk_img);
+            if path.exists() {
+                log(LogLevel::Warn, &format!("disk image \"{}\" already exists!", os_config.platform.qemu.disk_img));
+            } else {
+                make_disk_image_fat32(&os_config.platform.qemu.disk_img);
+            }
+        }
         run_qemu(qemu_args_final);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
@@ -432,6 +441,32 @@ pub fn run (
             log(LogLevel::Error, &format!("  Error: {}", &trgt.bin_path));
             std::process::exit(1);
         }
+    }
+}
+
+/// Makes the disk_img of fat32
+fn make_disk_image_fat32(file_name: &str) {
+    log(LogLevel::Log, &format!("Creating FAT32 disk image \"{}\" ...", file_name));
+    let output = Command::new("dd")
+        .arg("if=/dev/zero")
+        .arg(&format!("of={}", file_name))
+        .arg("bs=1M")
+        .arg("count=64")
+        .output()
+        .expect("failed to execute dd command");
+    if !output.status.success() {
+        log(LogLevel::Error, &format!("dd command failed with exit code {:?}", output.status.code()));
+        std::process::exit(1);
+    }
+    let mkfs_output = Command::new("mkfs.fat")
+        .arg("-F")
+        .arg("32")
+        .arg(file_name)
+        .output()
+        .expect("failed to execute mkfs.fat command");
+    if !mkfs_output.status.success() {
+        log(LogLevel::Error, &format!("mkfs.fat command failed with exit code {:?}", mkfs_output.status.code()));
+        std::process::exit(1);
     }
 }
 
@@ -458,7 +493,7 @@ fn run_qemu(qemu_args: Vec<String>) {
     }
 }
 
-///Initialises a new project in the current directory
+/// Initialises a new project in the current directory
 pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfig) {
     log(LogLevel::Log, "Initializing project...");
 
@@ -686,10 +721,16 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
         std::env::set_var("AX_MODE", &os_config.platform.mode);
         std::env::set_var("AX_LOG", &os_config.platform.log);
         std::env::set_var("AX_TARGET", &os_config.platform.target);
-        // Ip and gw is for QEMU user netdev
         if os_config.platform.qemu != QemuConfig::default() {
+            // ip and gw is for QEMU user netdev
             std::env::set_var("AX_IP", &os_config.platform.qemu.ip);
             std::env::set_var("AX_GW", &os_config.platform.qemu.gw);
+            // v9p option
+            if os_config.platform.qemu.v9p == "y" {
+                std::env::set_var("AX_9P_ADDR", "127.0.0.1:564");
+                std::env::set_var("AX_ANAME_9P", "./");
+                std::env::set_var("AX_PROTOCOL_9P", "9P2000.L");
+            }
         }
     } 
 
