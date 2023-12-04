@@ -391,8 +391,7 @@ impl<'a> Target<'a> {
                     cmd.push_str(" ");
                     cmd.push_str(&dep_target.bin_path);
                 }
-                // Get libraries as packages
-                //? conside add bin_path field in struct package
+                // get libraries as packages
                 for package in self.packages {
                     for target in &package.target_configs {
                         cmd.push_str(" ");
@@ -404,7 +403,7 @@ impl<'a> Target<'a> {
                 }
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.elf_path);
-                // Generate a .bin file
+                // generate a .bin file
                 cmd_bin.push_str(&format!("rust-objcopy --binary-architecture={}", &self.os_config.platform.arch));
                 cmd_bin.push_str(" ");
                 cmd_bin.push_str(&self.elf_path);

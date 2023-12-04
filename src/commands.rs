@@ -2,7 +2,6 @@ use crate::builder::Target;
 use crate::global_cfg::GlobalConfig;
 use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
-use crate::qemu;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -352,7 +351,7 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
         "cargo build {} {} {} {} {} --features \"{}\"",
         target, target_dir, mode, axlibc, verbose, features
     );
-    log(LogLevel::Debug, &format!("Command: {}", cmd));
+    log(LogLevel::Info, &format!("Command: {}", cmd));
     let output = Command::new("sh")
         .arg("-c")
         .arg(cmd)
@@ -412,7 +411,7 @@ pub fn run (
         std::process::exit(1);
     }
     if os_config.platform.qemu != QemuConfig::default() {
-        let (qemu_args_final, _) = qemu::config_qemu(&os_config.platform, &trgt);
+        let (qemu_args_final, _) = QemuConfig::config_qemu(&os_config.platform.qemu, &os_config.platform, &trgt);
         run_qemu(qemu_args_final);
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));

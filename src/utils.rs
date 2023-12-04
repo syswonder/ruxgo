@@ -4,6 +4,7 @@ use std::{fs::File, io::Read, path::Path, process::Command};
 use toml::{Table, Value};
 use colored::Colorize;
 use std::default::Default;
+use crate::builder::Target;
 
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
@@ -92,7 +93,6 @@ pub struct PlatformConfig {
     pub name: String,
     pub arch: String,
     pub target: String,
-    pub accel: String,
     pub smp: String,
     pub mode: String,
     pub log: String,
@@ -108,11 +108,128 @@ pub struct QemuConfig {
     pub graphic: String,
     pub bus: String,
     pub disk_img: String,
+    pub accel: String,
     pub qemu_log: String,
     pub net_dump: String,
     pub net_dev: String,
     pub ip: String,
     pub gw: String,
+    pub args: String,
+    pub envs: String,
+}
+
+impl QemuConfig {
+    /// This function is used to get qemu parameters when running on qemu
+    pub fn config_qemu(&self, platform_config: &PlatformConfig, trgt: &Target) -> (Vec<String>, Vec<String>) {
+        // vdev_suffix
+        let vdev_suffix = match self.bus.as_str() {
+            "mmio" => "device",
+            "pci" => "pci",
+            _ => {
+                log(LogLevel::Error, "BUS must be one of 'mmio' or 'pci'");
+                std::process::exit(1);
+            }
+        };
+        // config qemu
+        let mut qemu_args = Vec::new();
+        qemu_args.push(format!("qemu-system-{}", platform_config.arch));
+        // init
+        qemu_args.push("-m".to_string());
+        qemu_args.push("128M".to_string());
+        qemu_args.push("-smp".to_string());
+        qemu_args.push(platform_config.smp.clone());
+        // arch
+        match platform_config.arch.as_str() {
+            "x86_64" => {
+                qemu_args.extend(
+                    vec!["-machine", "q35", "-kernel", &trgt.elf_path].iter().map(|&arg| arg.to_string()));
+            }
+            "risc64" => {
+                qemu_args.extend(
+                    vec!["-machine", "virt", "-bios", "default", "-kernel", &trgt.bin_path]
+                    .iter().map(|&arg| arg.to_string()));
+            }
+            "aarch64" => {
+                qemu_args.extend(
+                    vec!["-cpu", "cortex-a72", "-machine", "virt", "-kernel", &trgt.bin_path]
+                    .iter().map(|&arg| arg.to_string()));
+            }
+            _ => {
+                log(LogLevel::Error, "Unsupported architecture");
+                std::process::exit(1);
+            }
+        };
+        // args and envs
+        qemu_args.push("-append".to_string());
+        qemu_args.push(format!("\";{};{}\"", self.args, self.envs));
+        // blk
+        if self.blk == "y" {
+            qemu_args.push("-device".to_string());
+            qemu_args.push(format!("virtio-blk-{},drive=disk0", vdev_suffix));
+            qemu_args.push("-drive".to_string());
+            qemu_args.push(format!("id=disk0,if=none,format=raw,file={}", self.disk_img));
+        }
+        // net
+        if self.net == "y" {
+            qemu_args.push("-device".to_string());
+            qemu_args.push(format!("virtio-net-{},netdev=net0", vdev_suffix));
+            // net_dev
+            if self.net_dev == "user" {
+                qemu_args.push("-netdev".to_string());
+                qemu_args.push("user,id=net0,hostfwd=tcp::5555-:5555,hostfwd=udp::5555-:5555".to_string());
+            } else if self.net_dev == "tap" {
+                qemu_args.push("-netdev".to_string());
+                qemu_args.push("tap,id=net0,ifname=tap0,script=no,downscript=no".to_string());
+            } else {
+                log(LogLevel::Error, "NET_DEV must be one of 'user' or 'tap'");
+                std::process::exit(1);
+            }
+            // net_dump
+            if self.net_dump == "y" {
+                qemu_args.push("-object".to_string());
+                qemu_args.push("filter-dump,id=dump0,netdev=net0,file=netdump.pcap".to_string());
+            }
+        }
+        // graphic
+        if self.graphic == "y" {
+            qemu_args.push("-device".to_string());
+            qemu_args.push(format!("virtio-gpu-{}", vdev_suffix));
+            qemu_args.push("-vga".to_string());
+            qemu_args.push("none".to_string());
+            qemu_args.push("-serial".to_string());
+            qemu_args.push("mon:stdio".to_string());
+        } else if self.graphic == "n" {
+            qemu_args.push("-nographic".to_string());
+        }
+        // qemu_log
+        if self.qemu_log == "y" {
+            qemu_args.push("-D".to_string());
+            qemu_args.push("qemu.log".to_string());
+            qemu_args.push("-d".to_string());
+            qemu_args.push("in_asm,int,mmu,pcall,cpu_reset,guest_errors".to_string());
+        }
+        // debug
+        let mut qemu_args_debug = Vec::new();
+        qemu_args_debug.extend(qemu_args.clone());
+        qemu_args_debug.push("-s".to_string());
+        qemu_args_debug.push("-S".to_string());
+        // acceel
+        if self.accel == "y" {
+            if cfg!(target_os = "darwin") {
+                qemu_args.push("-cpu".to_string());
+                qemu_args.push("host".to_string());
+                qemu_args.push("-accel".to_string());
+                qemu_args.push("hvf".to_string());
+            } else {
+                qemu_args.push("-cpu".to_string());
+                qemu_args.push("host".to_string());
+                qemu_args.push("-accel".to_string());
+                qemu_args.push("kvm".to_string());
+            }
+        }
+    
+        (qemu_args, qemu_args_debug)
+    }
 }
 
 /// Struct describing the target config of the local project
@@ -330,22 +447,10 @@ fn parse_platform(config: &Table) -> PlatformConfig {
     if let Some(platform_table) = platform.as_table() {
         let name = parse_cfg_string(&platform_table, "name", "x86_64-qemu-q35");
         let arch = name.split("-").next().unwrap_or("x86_64").to_string();
-        let (target, accel) = match &arch[..] {
-            "x86_64" => {
-                let accel_pre = match Command::new("uname").arg("-r").output() {
-                    Ok(output) => {
-                        let kernel_version = String::from_utf8_lossy(&output.stdout).to_lowercase();
-                        if kernel_version.contains("-microsoft") { "n" } else { "y" }
-                    },
-                    Err(_) => {
-                        log(LogLevel::Error, "Failed to execute command");
-                        std::process::exit(1);
-                    }
-                };
-                ("x86_64-unknown-none".to_string(), accel_pre.to_string())
-            },
-            "riscv64" => ("riscv64gc-unknown-none-elf".to_string(), "n".to_string()),
-            "aarch64" => ("aarch64-unknown-none-softfloat".to_string(), "n".to_string()),
+        let target = match &arch[..] {
+            "x86_64" => "x86_64-unknown-none".to_string(),
+            "riscv64" => "riscv64gc-unknown-none-elf".to_string(),
+            "aarch64" => "aarch64-unknown-none-softfloat".to_string(),
             _ => {
                 log(LogLevel::Error, "\"ARCH\" must be one of \"x86_64\", \"riscv64\", or \"aarch64\"");
                 std::process::exit(1);
@@ -363,7 +468,7 @@ fn parse_platform(config: &Table) -> PlatformConfig {
         } else {
             qemu = QemuConfig::default();
         }
-        PlatformConfig {name, arch, target, accel, smp, mode, log, v, qemu}
+        PlatformConfig {name, arch, target, smp, mode, log, v, qemu}
     } else {
         log(LogLevel::Error, "Platform is not a table");
         std::process::exit(1);
@@ -383,13 +488,28 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
             _ => "mmio".to_string()
         };
         let disk_img = parse_cfg_string(&qemu_table, "disk_img", "disk.img");
+        let accel_pre = match Command::new("uname").arg("-r").output() {
+            Ok(output) => {
+                let kernel_version = String::from_utf8_lossy(&output.stdout).to_lowercase();
+                if kernel_version.contains("-microsoft") { "n" } else { "y" }
+            },
+            Err(_) => {
+                log(LogLevel::Error, "Failed to execute command");
+                std::process::exit(1);
+            }
+        };
+        let accel = match &arch[..] {
+            "x86_64" => accel_pre.to_string(),
+            _ => "n".to_string()
+        };
         let qemu_log = parse_cfg_string(&qemu_table, "qemu_log", "n");
         let net_dump = parse_cfg_string(&qemu_table, "net_dump", "n");
         let net_dev = parse_cfg_string(&qemu_table, "net_dev", "user");
         let ip = parse_cfg_string(&qemu_table, "ip",  "10.0.2.15");
         let gw = parse_cfg_string(&qemu_table, "gw", "10.0.2.2");
-
-        QemuConfig {blk, net, graphic, bus, disk_img, qemu_log, net_dump, net_dev, ip, gw}
+        let args = parse_cfg_string(&qemu_table, "args", "");
+        let envs = parse_cfg_string(&qemu_table, "envs", "");
+        QemuConfig {blk, net, graphic, bus, disk_img, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs}
     } else {
         log(LogLevel::Error, "Qemu is not a table");
         std::process::exit(1);

@@ -1,7 +1,9 @@
 use crate::utils::{OSConfig, log, LogLevel};
 
 pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
-    let lib_features = vec!["fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "epoll"];
+    let lib_features = vec![
+        "fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "poll", "epoll", "random-hw", "signal"
+        ]; 
     let mut features= os_config.features.clone();
     if features.iter().any(|feat| {
         feat == "fs" || feat == "net" || feat == "pipe" || feat == "select" || feat == "epoll"
