@@ -159,7 +159,7 @@ license = "NONE"
 
     if args.clean {
         utils::log(utils::LogLevel::Log, "Cleaning...");
-        commands::clean(&targets, &os_config);
+        commands::clean(&targets, &os_config, &packages);
     }
 
     if args.build {

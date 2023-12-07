@@ -160,11 +160,12 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             });
         }
-        for pkg in self.packages {  // also build other target of package
+        for pkg in self.packages {  // build other lib targets of package firstly
             for target in &pkg.target_configs {
                 let empty: Vec<Package> = Vec::new();
-                if target.typ == "dll" {
-                    let mut pkg_tgt = Target::new(&pkg.build_config, &pkg.os_config, target, &pkg.target_configs, &empty);
+                if target.typ == "dll" || target.typ == "static" || target.typ == "object"{
+                    // If the root target(exe target) adds os_config, the package also adds os_config
+                    let mut pkg_tgt = Target::new(&pkg.build_config, &self.os_config, target, &pkg.target_configs, &empty);
                     pkg_tgt.build(gen_cc);
                 }
             }
@@ -174,7 +175,7 @@ impl<'a> Target<'a> {
         let mut srcs_needed = 0;
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
-        if self.srcs.is_empty() && self.dependant_libs.len() > 0 {
+        if !self.target_config.deps.is_empty() {
             to_link = true;
         }
         for src in &self.srcs {
@@ -311,7 +312,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(&lib_name);
                 cmd.push_str(" ");
             }
-            // Get libraries as packages
+            // get libraries as packages
             for package in self.packages {
                 for target in &package.target_configs {
                     cmd.push_str(" -I");
@@ -324,7 +325,7 @@ impl<'a> Target<'a> {
                     cmd.push_str(" ");
                 }
             }
-            // Added -L library search path
+            // added -L library search path
             if self.packages.len() + self.dependant_libs.len() > 0 {
                 cmd.push_str(" -L");
                 cmd.push_str(BUILD_DIR);
@@ -392,13 +393,21 @@ impl<'a> Target<'a> {
                     cmd.push_str(&dep_target.bin_path);
                 }
                 // get libraries as packages
-                for package in self.packages {
-                    for target in &package.target_configs {
-                        cmd.push_str(" ");
-                        cmd.push_str(BUILD_DIR);
-                        cmd.push_str("/");
-                        cmd.push_str(&target.name);
-                        cmd.push_str(".a");
+                for dep in &self.target_config.deps {
+                    for package in self.packages {
+                        for target in &package.target_configs {
+                            if target.name == *dep {
+                                cmd.push_str(" ");
+                                cmd.push_str(BUILD_DIR);
+                                cmd.push_str("/");
+                                cmd.push_str(&target.name);
+                                if target.typ == "static" {
+                                    cmd.push_str(".a");
+                                } else if target.typ == "object"{
+                                    cmd.push_str(".o");
+                                }
+                            }
+                        }
                     }
                 }
                 cmd.push_str(" -o ");
@@ -439,7 +448,7 @@ impl<'a> Target<'a> {
                         cmd.push_str(" ");
                     }
                 }
-                // Get libraries as packages
+                // get libraries as packages
                 for package in self.packages {
                     for target in &package.target_configs {
                         //? consider object type
@@ -799,12 +808,15 @@ impl Src {
             cmd.push_str(" ");
         }
         // consider some includes in other packages
-        if !build_config.packages.is_empty() {
-            for package in &build_config.packages {
-                cmd.push_str("-I");
-                cmd.push_str(&format!("rukos_bld/includes/{} ", 
-                    &package.split_whitespace().next().unwrap().split('/').last().unwrap().replace(",", "")));
-                cmd.push_str(" ");
+        // ulib target not need to consider
+        if target_config.name != "axlibc" {
+            if !build_config.packages.is_empty() {
+                for package in &build_config.packages {
+                    cmd.push_str(" -I");
+                    cmd.push_str(&format!("rukos_bld/includes/{} ",
+                        &package.split_whitespace().next().unwrap().split('/').last().unwrap().replace(",", "")));
+                    cmd.push_str(" ");
+                }
             }
         }
 

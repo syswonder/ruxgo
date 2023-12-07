@@ -1,10 +1,12 @@
 //! This file contains various logging and toml parsing functions
 //! used by the rukoskit library
-use std::{fs::File, io::Read, path::Path, process::Command};
+use std::{io::Read, path::Path};
+use std::fs::{self, File};
 use toml::{Table, Value};
 use colored::Colorize;
 use std::default::Default;
 use crate::builder::Target;
+use std::process::{Command, Stdio};
 
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "rukos_bld/obj_win32";
@@ -121,7 +123,7 @@ pub struct QemuConfig {
 }
 
 impl QemuConfig {
-    /// This function is used to get qemu parameters when running on qemu
+    /// This function is used to config qemu parameters when running on qemu
     pub fn config_qemu(&self, platform_config: &PlatformConfig, trgt: &Target) -> (Vec<String>, Vec<String>) {
         // vdev_suffix
         let vdev_suffix = match self.bus.as_str() {
@@ -365,12 +367,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             let ulib = parse_cfg_string(&os_table, "ulib", "axlibc");
             // Parse platform (if empty, it is the default value)
             let platform = parse_platform(&os_table);
-            os_config = OSConfig {
-                name,
-                features,
-                ulib,
-                platform,
-            };
+            os_config = OSConfig {name, features, ulib, platform};
         } else {
             log(LogLevel::Error, "OS is not a table");
             std::process::exit(1);
@@ -398,7 +395,6 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
             ldflags: parse_cfg_string(target_tb, "ldflags", ""),
-            // Deps is optional
             deps: parse_cfg_vector(target_tb, "deps"),
         };
         if target_config.typ != "exe" && target_config.typ != "dll" 
@@ -409,12 +405,10 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         tgt.push(target_config);
     }
 
-    // Sort and remove duplicate targets
     if tgt.is_empty() {
         log(LogLevel::Error, "No targets found");
         std::process::exit(1);
     }
-
     // Check for duplicate target names
     for i in 0..tgt.len() - 1 {
         for j in i + 1..tgt.len() {
@@ -443,7 +437,6 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }
         }
     }
-
     let tgt_arranged = TargetConfig::arrange_targets(tgt);
 
     (build_config, os_config, tgt_arranged)
@@ -568,7 +561,6 @@ pub struct Package {
     pub repo: String,
     pub branch: String,
     pub build_config: BuildConfig,
-    pub os_config: OSConfig,
     pub target_configs: Vec<TargetConfig>,
 }
 
@@ -579,7 +571,6 @@ impl Package {
         repo: String, 
         branch: String, 
         build_config: BuildConfig, 
-        os_config: OSConfig, 
         target_configs: Vec<TargetConfig>
     ) -> Package {
         Package {
@@ -587,7 +578,6 @@ impl Package {
             repo,
             branch,
             build_config,
-            os_config,
             target_configs,
         }
     }
@@ -652,7 +642,7 @@ impl Package {
     /// * `path` - The path to the folder containing the package
     pub fn parse_packages(path: &str) -> Vec<Package> {
         let mut packages: Vec<Package> = Vec::new();
-        //initialize fields
+        // initialize fields
         let mut name = String::new();
         let mut repo = String::new();
         let mut branch = String::new();
@@ -661,9 +651,8 @@ impl Package {
             packages: Vec::new(),
         };
         let mut target_configs = Vec::new();
-        let os_config = OSConfig::default();
         // parse the root toml file
-        // packages = ["Dr-42/Nomu_Engine, master"]
+        // packages = ["Ybeichen/redis, redis-7.0.12"]
         let (build_config_toml, _ , _) = parse_config(path, false);
         for package in build_config_toml.packages {
             let deets = package.split_whitespace().collect::<Vec<&str>>();
@@ -674,33 +663,33 @@ impl Package {
             repo = deets[0].to_string().replace(",", "");
             branch = deets[1].to_string();
             name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
-            
-            let source_dir = format!("./rukos_bld/sources/{}/", name);
+            let source_dir = format!("./rukos_bld/{}/", branch);
+            // git clone packages
             if !Path::new(&source_dir).exists() {
-                Command::new("mkdir")
-                    .arg("-p")
-                    .arg(&source_dir)
-                    .output()
-                    .expect("Failed to execute mkdir");
-                if !Path::new(&source_dir).exists() {
-                    log(LogLevel::Error, &format!("Failed to create {}", source_dir));
-                    std::process::exit(1);
-                } else {
-                    log(LogLevel::Info, &format!("Created {}", source_dir));
-                }
-                log(LogLevel::Log, &format!("Cloning {} into {}", repo, source_dir));
-                let repo_https = format!("https://github.com/{}", repo);
+                fs::create_dir_all(&source_dir)
+                    .unwrap_or_else(|err| {
+                        log(LogLevel::Error, &format!("Failed to create {}: {}", source_dir, err));
+                        std::process::exit(1);
+                    });
+                log(LogLevel::Info, &format!("Created {}", source_dir));
+                log(LogLevel::Log, &format!("Cloning {} into {}...", repo, source_dir));
+                let repo_https = format!("https://mirror.ghproxy.com/https://github.com/{}", repo);
                 let mut cmd = Command::new("git");
                 cmd.arg("clone")
                     .arg("--branch")
                     .arg(&branch)
                     .arg(&repo_https)
-                    .arg(&source_dir);
+                    .arg(&source_dir)
+                    .stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit());
                 let output = cmd.output().expect("Failed to execute git clone");
                 if !output.status.success() {
                     log(LogLevel::Error, &format!("Failed to clone {} branch {} into {}", repo, branch, source_dir));
                     std::process::exit(1);
                 }
+            } else {
+                log(LogLevel::Log, &format!("{} already exists!", source_dir));
             }
             #[cfg(target_os = "linux")]
             let pkg_toml = format!("{}/config_linux.toml", source_dir).replace("//", "/");
@@ -717,57 +706,34 @@ impl Package {
             }
 
             build_config = pkg_bld_config_toml;
-            build_config.compiler = build_config_toml.compiler.clone();
+            build_config.compiler = build_config_toml.compiler.clone(); // use current compiler
             if !Path::new(OBJ_DIR).exists() {
-                let cmd = Command::new("mkdir")
-                    .arg("-p")
-                    .arg(OBJ_DIR)
-                    .output();
-                if cmd.is_err() {
-                    log(LogLevel::Error, &format!("Failed to create {}", OBJ_DIR));
+                fs::create_dir_all(OBJ_DIR).unwrap_or_else(|error| {
+                    log(LogLevel::Error, &format!("Failed to create {}: {:?}", OBJ_DIR, error));
                     std::process::exit(1);
-                }
+                });
                 log(LogLevel::Info, &format!("Created {}", OBJ_DIR));
             }
 
             let tgt_configs = pkg_targets_toml;
             for mut tgt in tgt_configs {
-                if tgt.typ != "dll" {
+                if tgt.typ != "dll" && tgt.typ != "static" && tgt.typ != "object" {
                     continue;
                 }
-                tgt.src = format!("{}/{}", source_dir, tgt.src).replace("\\", "/").replace("/./", "/").replace("//", "/");
-                let old_inc_dir = tgt.include_dir.clone();
-                tgt.include_dir = format!("./rukos_bld/includes/{}", name).replace("\\", "/").replace("/./", "/").replace("//", "/");
-                if !Path::new(&tgt.include_dir).exists() {
-                    let cmd = Command::new("mkdir")
-                        .arg("-p")
-                        .arg(&tgt.include_dir)
-                        .output();
-                    if cmd.is_err() {
-                        log(LogLevel::Error, &format!("Failed to create {}", tgt.include_dir));
-                        std::process::exit(1);
-                    }
-                    log(LogLevel::Info, &format!("Created {}", tgt.include_dir));
-
-                    let mut cm = String::new();
-                    cm.push_str("cp -r ");
-                    cm.push_str(&format!("{}/{}/* ", source_dir, old_inc_dir).replace("\\", "/").replace("/./", "/").replace("//", "/"));
-                    cm.push_str(&tgt.include_dir);
-                    cm.push_str("/ ");
-                    let cmd = Command::new("sh")
-                        .arg("-c")
-                        .arg(&cm)
-                        .output();
-                    if cmd.is_err() {
-                        log(LogLevel::Error, &format!("Failed to create {}", tgt.include_dir));
-                        std::process::exit(1);
-                    }
-                }
+                // concatenate to generate a new src path and include path
+                tgt.src = format!("{}/{}", source_dir, tgt.src)
+                    .replace("\\", "/")
+                    .replace("/./", "/")
+                    .replace("//", "/");
+                tgt.include_dir = format!("{}/{}", source_dir, tgt.include_dir)
+                    .replace("\\", "/")
+                    .replace("/./", "/")
+                    .replace("//", "/");
                 target_configs.push(tgt);
             }
         }
 
-        packages.push(Package::new(name, repo, branch, build_config, os_config, target_configs));
+        packages.push(Package::new(name, repo, branch, build_config, target_configs));
         // Sort and remove duplicate packages
         packages.sort_by_key(|a| a.name.clone());
         packages.dedup_by_key(|a| a.name.clone());

@@ -13,7 +13,6 @@ A Cargo-like build tool for building C and C++ applications
 * [x] Get libraries as packages from github
 * [x] Create new project
 * [x] Supported static libraries rust_lib
-* [x] Supported ar and ld commands as optional
 * [x] Supported the feature selection
 * [x] Supported run by qemu
 * [x] Supported global configurations

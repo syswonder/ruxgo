@@ -18,7 +18,7 @@ static TARGET_DIR: &str = "rukos_bld/target";
 /// Cleans the local targets
 /// # Arguments
 /// * `targets` - A vector of targets to clean
-pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
+pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>) {
     if Path::new(ROOT_DIR).exists() {
         fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
@@ -57,7 +57,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
             });
             log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
         } else {
-            log(LogLevel::Log, &format!("Binary file does not exist: {}", &ulib_bin_name));
+            log(LogLevel::Warn, &format!("Binary file does not exist: {}", &ulib_bin_name));
         }
     }
     // romove hashes and bins of other targets
@@ -102,7 +102,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
                 });
                 log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
             } else {
-                log(LogLevel::Log, &format!("Binary file does not exist: {}", &bin_name));
+                log(LogLevel::Warn, &format!("Binary file does not exist: {}", &bin_name));
             }
             if Path::new(&elf_name).exists() {
                 fs::remove_file(&elf_name).unwrap_or_else(|why| {
@@ -110,7 +110,48 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig) {
                 });
                 log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
             } else {
-                log(LogLevel::Log, &format!("ELF file does not exist: {}", &elf_name));
+                log(LogLevel::Warn, &format!("ELF file does not exist: {}", &elf_name));
+            }
+        }
+    }
+    // romove hashes and bins of package
+    for pack in packages {
+        for target in &pack.target_configs {
+            #[cfg(target_os = "windows")]
+            let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
+            #[cfg(target_os = "linux")]
+            let hash_path = format!("rukos_bld/{}.linux.hash", &target.name);
+            if Path::new(&hash_path).exists() {
+                fs::remove_file(&hash_path).unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
+                });
+                log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
+            }
+            if Path::new(BUILD_DIR).exists() {
+                let mut bin_name = String::new();
+                bin_name.push_str(BUILD_DIR);
+                bin_name.push_str("/");
+                bin_name.push_str(&target.name);
+                #[cfg(target_os = "windows")]
+                if target.typ == "dll" {
+                    bin_name.push_str(".dll");
+                }
+                #[cfg(target_os = "linux")]
+                if target.typ == "dll" {
+                    bin_name.push_str(".so");
+                } else if target.typ == "static" {
+                    bin_name.push_str(".a");
+                } else if target.typ == "object" {
+                    bin_name.push_str(".o");
+                }
+                if Path::new(&bin_name).exists() {
+                    fs::remove_file(&bin_name).unwrap_or_else(|why| {
+                        log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+                    });
+                    log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
+                } else {
+                    log(LogLevel::Warn, &format!("Binary file does not exist: {}", &bin_name));
+                }
             }
         }
     }
@@ -152,6 +193,7 @@ pub fn clean_packages(packages: &Vec<Package>) {
 /// # Arguments
 /// * `build_config` - The local build configuration
 /// * `targets` - A vector of targets to build
+/// * `os_config` - The local os configuration
 /// * `gen_cc` - Whether to generate a compile_commands.json file
 /// * `gen_vsc` - Whether to generate a .vscode/c_cpp_properties.json file
 pub fn build(
@@ -308,6 +350,8 @@ pub fn build(
             build_ulib(build_config, os_config, gen_cc, "libc");
         }
     };
+
+    //? Construct packages's targets
 
     // Construct each target separately
     for target in targets {
@@ -750,10 +794,7 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
     }
 
     if num_exe != 1 || exe_target.is_none() {
-        log(
-            LogLevel::Error,
-            "Exactly one executable target must be specified",
-        );
+        log(LogLevel::Error, "Exactly one executable target must be specified");
         std::process::exit(1);
     }
 
