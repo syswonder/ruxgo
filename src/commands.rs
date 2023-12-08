@@ -196,6 +196,7 @@ pub fn clean_packages(packages: &Vec<Package>) {
 /// * `os_config` - The local os configuration
 /// * `gen_cc` - Whether to generate a compile_commands.json file
 /// * `gen_vsc` - Whether to generate a .vscode/c_cpp_properties.json file
+/// * `packages` - A vector of packages to get libs
 pub fn build(
     build_config: &BuildConfig, 
     targets: &Vec<TargetConfig>, 
@@ -351,8 +352,6 @@ pub fn build(
         }
     };
 
-    //? Construct packages's targets
-
     // Construct each target separately
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets, packages);
@@ -425,7 +424,8 @@ fn build_ulib(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool, na
         include_dir: format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name),
         typ: "static".to_string(),
         cflags: String::from(""),
-        ldflags: format!("{}-linux-musl-ar rcs", os_config.platform.arch),
+        archive: format!("{}-linux-musl-ar", os_config.platform.arch),
+        ldflags: String::from("rcs"),
         deps: Vec::new(),
     };
     let ulib_targets = Vec::new();

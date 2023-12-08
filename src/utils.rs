@@ -74,7 +74,7 @@ pub fn log(level: LogLevel, message: &str) {
 }
 
 /// Struct descibing the build config of the local project
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuildConfig {
     pub compiler: String,
     pub packages: Vec<String>,
@@ -252,6 +252,7 @@ pub struct TargetConfig {
     pub include_dir: String,
     pub typ: String,
     pub cflags: String,
+    pub archive: String,
     pub ldflags: String,
     pub deps: Vec<String>,
 }
@@ -394,6 +395,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             include_dir: parse_cfg_string(target_tb, "include_dir", "NULL"),
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
+            archive: parse_cfg_string(target_tb, "archive", ""),
             ldflags: parse_cfg_string(target_tb, "ldflags", ""),
             deps: parse_cfg_vector(target_tb, "deps"),
         };
@@ -555,13 +557,14 @@ fn parse_cfg_vector(config: &Table, field: &str) -> Vec<String> {
 }
 
 /// Represents a package
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Package {
     pub name: String,
     pub repo: String,
     pub branch: String,
     pub build_config: BuildConfig,
     pub target_configs: Vec<TargetConfig>,
+    pub sub_packages: Vec<Package>,
 }
 
 impl Package {
@@ -571,7 +574,8 @@ impl Package {
         repo: String, 
         branch: String, 
         build_config: BuildConfig, 
-        target_configs: Vec<TargetConfig>
+        target_configs: Vec<TargetConfig>,
+        sub_packages: Vec<Package>
     ) -> Package {
         Package {
             name,
@@ -579,6 +583,7 @@ impl Package {
             branch,
             build_config,
             target_configs,
+            sub_packages,
         }
     }
     
@@ -651,8 +656,8 @@ impl Package {
             packages: Vec::new(),
         };
         let mut target_configs = Vec::new();
-        // parse the root toml file
-        // packages = ["Ybeichen/redis, redis-7.0.12"]
+        let mut sub_packages: Vec<Package> = Vec::new();
+        // parse the root toml file, eg: packages = ["Ybeichen/redis, redis-7.0.12"]
         let (build_config_toml, _ , _) = parse_config(path, false);
         for package in build_config_toml.packages {
             let deets = package.split_whitespace().collect::<Vec<&str>>();
@@ -699,12 +704,15 @@ impl Package {
             let (pkg_bld_config_toml, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
+            // recursive parse all of the packages
             if !pkg_bld_config_toml.packages.is_empty() {
-                for foreign_package in Package::parse_packages(&pkg_toml){
+                sub_packages = Package::parse_packages(&pkg_toml);
+                for foreign_package in sub_packages.clone() {
                     packages.push(foreign_package);
                 }
             }
 
+            // get build_config
             build_config = pkg_bld_config_toml;
             build_config.compiler = build_config_toml.compiler.clone(); // use current compiler
             if !Path::new(OBJ_DIR).exists() {
@@ -715,6 +723,7 @@ impl Package {
                 log(LogLevel::Info, &format!("Created {}", OBJ_DIR));
             }
 
+            // get tgt_config
             let tgt_configs = pkg_targets_toml;
             for mut tgt in tgt_configs {
                 if tgt.typ != "dll" && tgt.typ != "static" && tgt.typ != "object" {
@@ -733,8 +742,8 @@ impl Package {
             }
         }
 
-        packages.push(Package::new(name, repo, branch, build_config, target_configs));
-        // Sort and remove duplicate packages
+        packages.push(Package::new(name, repo, branch, build_config, target_configs, sub_packages));
+        // sort and remove duplicate packages
         packages.sort_by_key(|a| a.name.clone());
         packages.dedup_by_key(|a| a.name.clone());
         packages

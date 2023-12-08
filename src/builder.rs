@@ -97,13 +97,22 @@ impl<'a> Target<'a> {
         let hash_file_path = format!("rukos_bld/{}.linux.hash", &target_config.name);
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
+        // add dependant libs
         for dependant_lib in &target_config.deps {
             for target in targets {
                 if target.name == *dependant_lib {
                     dependant_libs.push(Target::new(build_config, os_config, target, targets, packages));
                 }
             }
+            for pkg in packages {
+                for target in &pkg.target_configs {
+                    if target.name == *dependant_lib {
+                        dependant_libs.push(Target::new(&pkg.build_config, os_config, target, &pkg.target_configs, &pkg.sub_packages));
+                    }
+                }
+            }
         }
+        // check types of the dependant libs
         for dep_lib in &dependant_libs {
             if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" && dep_lib.target_config.typ != "object" {
                 log(LogLevel::Error, "Can add only dlls, static or object libraries as dependant libs");
@@ -120,15 +129,20 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             } 
         }
-        if target_config.deps.len() > dependant_libs.len() + packages.len() {
-            log(LogLevel::Error, "Dependant libs not found");
+        if target_config.deps.len() > dependant_libs.len() {
+            log(LogLevel::Error, "Dependant libs not found!");
             log(LogLevel::Error, &format!("Dependant libs: {:?}", target_config.deps));
-            log(LogLevel::Error, &format!("Found libs: {:?}", targets.iter().map(|x| {
-                if x.typ == "dll" {
+            let mut targets_pkg = Vec::new();
+            for pkg in packages {
+                targets_pkg.extend(pkg.target_configs.clone());
+            }
+            let targets_all = targets.iter().chain(targets_pkg.iter());
+            log(LogLevel::Error, &format!("Found libs: {:?}", targets_all.map(|x| {
+                if x.typ == "dll" || x.typ == "static" || x.typ == "object"{
                     x.name.clone()
                 } else {
                     "".to_string()
-                }  //? consider eliminate or add static!
+                }
             }).collect::<Vec<String>>().into_iter().filter(|x| !x.is_empty()).collect::<Vec<String>>()));
             std::process::exit(1);
         }
@@ -160,12 +174,12 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             });
         }
-        for pkg in self.packages {  // build other lib targets of package firstly
+        // build other lib targets of packages firstly
+        for pkg in self.packages {
             for target in &pkg.target_configs {
-                let empty: Vec<Package> = Vec::new();
                 if target.typ == "dll" || target.typ == "static" || target.typ == "object"{
-                    // If the root target(exe target) adds os_config, the package also adds os_config
-                    let mut pkg_tgt = Target::new(&pkg.build_config, &self.os_config, target, &pkg.target_configs, &empty);
+                    // If the root target(exe target) adds os_config, the pkg_tgt also adds os_config
+                    let mut pkg_tgt = Target::new(&pkg.build_config, &self.os_config, target, &pkg.target_configs, &pkg.sub_packages);
                     pkg_tgt.build(gen_cc);
                 }
             }
@@ -175,7 +189,7 @@ impl<'a> Target<'a> {
         let mut srcs_needed = 0;
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
-        if !self.target_config.deps.is_empty() {
+        if !self.dependant_libs.is_empty() {
             to_link = true;
         }
         for src in &self.srcs {
@@ -318,7 +332,6 @@ impl<'a> Target<'a> {
                     cmd.push_str(" -I");
                     cmd.push_str(&target.include_dir);
                     cmd.push_str(" ");
-
                     let lib_name = target.name.clone();
                     let lib_name = lib_name.replace("lib", "-l");
                     cmd.push_str(&lib_name);
@@ -335,6 +348,8 @@ impl<'a> Target<'a> {
             cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
         } else if self.target_config.typ == "static" {
+            cmd.push_str(&self.target_config.archive);
+            cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
             cmd.push_str(" ");
             cmd.push_str(&self.bin_path);
@@ -392,24 +407,6 @@ impl<'a> Target<'a> {
                     cmd.push_str(" ");
                     cmd.push_str(&dep_target.bin_path);
                 }
-                // get libraries as packages
-                for dep in &self.target_config.deps {
-                    for package in self.packages {
-                        for target in &package.target_configs {
-                            if target.name == *dep {
-                                cmd.push_str(" ");
-                                cmd.push_str(BUILD_DIR);
-                                cmd.push_str("/");
-                                cmd.push_str(&target.name);
-                                if target.typ == "static" {
-                                    cmd.push_str(".a");
-                                } else if target.typ == "object"{
-                                    cmd.push_str(".o");
-                                }
-                            }
-                        }
-                    }
-                }
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.elf_path);
                 // generate a .bin file
@@ -418,7 +415,7 @@ impl<'a> Target<'a> {
                 cmd_bin.push_str(&self.elf_path);
                 cmd_bin.push_str(" --strip-all -O binary ");
                 cmd_bin.push_str(&self.bin_path);
-            }else{
+            } else {
                 cmd.push_str(&self.build_config.compiler);
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.bin_path);
@@ -438,24 +435,6 @@ impl<'a> Target<'a> {
                         cmd.push_str(&dep_target.target_config.include_dir);
                         cmd.push_str(" ");
                         let lib_name = dep_target.target_config.name.clone();
-                        let lib_name = lib_name.replace("lib", "-l");
-                        cmd.push_str(&lib_name);
-                        cmd.push_str(" ");
-                        // added -L library search path
-                        cmd.push_str(" -L");
-                        cmd.push_str(BUILD_DIR);
-                        cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
-                        cmd.push_str(" ");
-                    }
-                }
-                // get libraries as packages
-                for package in self.packages {
-                    for target in &package.target_configs {
-                        //? consider object type
-                        cmd.push_str(" -I");
-                        cmd.push_str(&target.include_dir);
-                        cmd.push_str(" ");
-                        let lib_name = target.name.clone();
                         let lib_name = lib_name.replace("lib", "-l");
                         cmd.push_str(&lib_name);
                         cmd.push_str(" ");
@@ -492,8 +471,8 @@ impl<'a> Target<'a> {
                 .output()
                 .expect("failed to execute process");
             if output_bin.status.success() {
-                log(LogLevel::Debug, &format!(" Bin_path: {}", &self.bin_path));
-                log(LogLevel::Debug, &format!(" Elf_path: {}", &self.elf_path));
+                log(LogLevel::Info, &format!(" Bin_path: {}", &self.bin_path));
+                log(LogLevel::Info, &format!(" Elf_path: {}", &self.elf_path));
              } else {
                 log(LogLevel::Error, "  Rust-objcopy failed");
                 log(LogLevel::Error, &format!(" Command: {}", &cmd_bin));
@@ -641,7 +620,7 @@ impl<'a> Target<'a> {
         srcs
     }
 
-    /// Add a source file to the target's srcs field
+    /// Adds a source file to the target's srcs field
     fn add_src(&mut self, path: String) {
         let name = Target::get_src_name(&path);
         let obj_name = self.get_src_obj_name(&name);
@@ -650,7 +629,7 @@ impl<'a> Target<'a> {
         self.srcs.push(Src::new(path, name, obj_name, bin_path, dependant_includes));
     }
 
-    /// Return the file name without the extension from the path
+    /// Returns the file name without the extension from the path
     fn get_src_name(path: &str) -> String {
         let path_buf = PathBuf::from(path);
         let file_name = path_buf.file_name().unwrap().to_str().unwrap();
@@ -658,7 +637,7 @@ impl<'a> Target<'a> {
         name.to_string()
     }
 
-    /// Return the object file name corresponding to the source file
+    /// Returns the object file name corresponding to the source file
     fn get_src_obj_name(&self, src_name: &str) -> String {
         let mut obj_name = String::new();
         obj_name.push_str(OBJ_DIR);
@@ -714,7 +693,7 @@ impl<'a> Target<'a> {
 }
 
 impl Src {
-    // Creates a new source file
+    /// Creates a new source file
     fn new(
         path: String, 
         name: String, 
@@ -731,7 +710,7 @@ impl Src {
         }
     }
 
-    /// Determine whether the object file needs to be rebuilt
+    /// Determines whether the object file needs to be rebuilt
     fn to_build(&self, path_hash: &HashMap<String, String>) -> (bool, String) {
         if !Path::new(&self.bin_path).exists() {
             let result = (true, format!("\tBinary does not exist: {}", &self.bin_path));
@@ -807,25 +786,13 @@ impl Src {
             cmd.push_str(dependant_lib.target_config.include_dir.as_str());
             cmd.push_str(" ");
         }
-        // consider some includes in other packages
-        // ulib target not need to consider
-        if target_config.name != "axlibc" {
-            if !build_config.packages.is_empty() {
-                for package in &build_config.packages {
-                    cmd.push_str(" -I");
-                    cmd.push_str(&format!("rukos_bld/includes/{} ",
-                        &package.split_whitespace().next().unwrap().split('/').last().unwrap().replace(",", "")));
-                    cmd.push_str(" ");
-                }
-            }
-        }
 
         cmd.push_str(" -c ");
         cmd.push_str(&self.path);
 
         //? consider add static general options
         if target_config.typ == "dll" {
-            cmd.push_str(" -fPIC");  // fPIC is position-independent code and used in dynamic link scenarios
+            cmd.push_str(" -fPIC");
         }
 
         log(LogLevel::Info, &format!("Building: {}", &self.name));
