@@ -7,13 +7,13 @@ use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
 
-static ROOT_DIR: &str = "rukos_bld";
-static BUILD_DIR: &str = "rukos_bld/bin";
+static ROOT_DIR: &str = "ruxos_bld";
+static BUILD_DIR: &str = "ruxos_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "rukos_bld/obj_linux";
-static TARGET_DIR: &str = "rukos_bld/target";
+static OBJ_DIR: &str = "ruxos_bld/obj_linux";
+static TARGET_DIR: &str = "ruxos_bld/target";
 
 /// Cleans the local targets
 /// # Arguments
@@ -39,7 +39,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
         log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
     }
     // remove ulib
-    let libc_hash_pash = "rukos_bld/libc.linux.hash";
+    let libc_hash_pash = "ruxos_bld/libc.linux.hash";
     if Path::new(libc_hash_pash).exists() {
         fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
@@ -63,9 +63,9 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
     // romove hashes and bins of other targets
     for target in targets {
         #[cfg(target_os = "windows")]
-        let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
+        let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
         #[cfg(target_os = "linux")]
-        let hash_path = format!("rukos_bld/{}.linux.hash", &target.name);
+        let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
         if Path::new(&hash_path).exists() {
             fs::remove_file(&hash_path).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
@@ -118,9 +118,9 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
     for pack in packages {
         for target in &pack.target_configs {
             #[cfg(target_os = "windows")]
-            let hash_path = format!("rukos_bld/{}.win32.hash", &target.name);
+            let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
             #[cfg(target_os = "linux")]
-            let hash_path = format!("rukos_bld/{}.linux.hash", &target.name);
+            let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
             if Path::new(&hash_path).exists() {
                 fs::remove_file(&hash_path).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
@@ -207,7 +207,7 @@ pub fn build(
 ) {
     if !Path::new(ROOT_DIR).exists() {
         fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not create rukos_bld directory: {}", why));
+            log(LogLevel::Error, &format!("Could not create ruxos_bld directory: {}", why));
             std::process::exit(1);
         });
     }
@@ -700,7 +700,7 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
                 std::process::exit(1);
             });
         gitignore_file
-            .write_all(b"rukos_bld\ncompile_commands.json\n.cache\n")
+            .write_all(b"ruxos_bld\ncompile_commands.json\n.cache\n")
             .unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not write to .gitignore: {}", why));
                 std::process::exit(1);

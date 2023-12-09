@@ -14,12 +14,12 @@ use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
 
-static ROOT_DIR: &str = "rukos_bld";
-static BUILD_DIR: &str = "rukos_bld/bin";
+static ROOT_DIR: &str = "ruxos_bld";
+static BUILD_DIR: &str = "ruxos_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "rukos_bld/obj_linux";
+static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 // Add rust_lib and c_lib
 static RUST_LIB: &str = "libaxlibc.a"; 
 static C_LIB: &str = "libc.a";
@@ -92,9 +92,9 @@ impl<'a> Target<'a> {
             bin_path.push_str(".o");
         }
         #[cfg(target_os = "windows")]
-        let hash_file_path = format!("rukos_bld/{}.win32.hash", &target_config.name);
+        let hash_file_path = format!("ruxos_bld/{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
-        let hash_file_path = format!("rukos_bld/{}.linux.hash", &target_config.name);
+        let hash_file_path = format!("ruxos_bld/{}.linux.hash", &target_config.name);
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
         // add dependant libs
@@ -170,7 +170,7 @@ impl<'a> Target<'a> {
     pub fn build(&mut self, gen_cc: bool) {
         if !Path::new(ROOT_DIR).exists() {
             std::fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Couldn't create rukos_bld directory: {}", why));
+                log(LogLevel::Error, &format!("Couldn't create ruxos_bld directory: {}", why));
                 std::process::exit(1);
             });
         }
@@ -248,8 +248,8 @@ impl<'a> Target<'a> {
                 }
                 src_hash_to_update.lock().unwrap().push(src);
                 log(LogLevel::Info, &format!("Compiled: {}", src.path));
-                // If the RUKOS_LOG_LEVEL is not "Info" or "Debug", update the compilation progress bar
-                let log_level = std::env::var("RUKOS_LOG_LEVEL").unwrap_or("".to_string());
+                // If the RUXOS_LOG_LEVEL is not "Info" or "Debug", update the compilation progress bar
+                let log_level = std::env::var("RUXOS_LOG_LEVEL").unwrap_or("".to_string());
                 if !(log_level == "Info" || log_level == "Debug") {
                     let mut num_complete = num_complete.lock().unwrap();
                     *num_complete += 1;
@@ -372,7 +372,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
                 cmd.push_str(&dep_target.bin_path);
             }
-        } else if self.target_config.typ == "exe"{
+        } else if self.target_config.typ == "exe" {
             if !self.os_config.name.is_empty() {
                 // add os_ldflags
                 let mut os_ldflags = String::new();
@@ -428,9 +428,9 @@ impl<'a> Target<'a> {
                 cmd.push_str(" ");
                 // link other dependant libraries
                 for dep_target in dep_targets {
-                    if dep_target.target_config.typ == "object" {
+                    if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
                         cmd.push_str(&dep_target.bin_path);
-                    } else {
+                    } else if dep_target.target_config.typ == "dll" {
                         cmd.push_str(" -I");
                         cmd.push_str(&dep_target.target_config.include_dir);
                         cmd.push_str(" ");

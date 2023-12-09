@@ -1,7 +1,7 @@
-use rukoskit::{utils, commands};
+use ruxgo::{utils, commands};
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
-use rukoskit::global_cfg::GlobalConfig;
+use ruxgo::global_cfg::GlobalConfig;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -71,7 +71,7 @@ enum Commands {
 
 fn main() {
     // Add global_config
-    let project_dirs = ProjectDirs::from("com", "RukosApps", "rukos-c").unwrap();
+    let project_dirs = ProjectDirs::from("com", "RuxosApps", "ruxos-c").unwrap();
     let config_dir = project_dirs.config_dir();
     if !config_dir.exists() {
         std::fs::create_dir_all(config_dir).unwrap();

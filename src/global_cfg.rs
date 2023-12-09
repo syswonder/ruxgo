@@ -41,7 +41,7 @@ impl GlobalConfig {
                 } else {
                     utils::log(
                         utils::LogLevel::Error,
-                        "Invalid compiler. See `rukoskit config --help` for more info",
+                        "Invalid compiler. See `ruxgo config --help` for more info",
                     );
                     std::process::exit(1);
                 }
@@ -52,7 +52,7 @@ impl GlobalConfig {
                 } else {
                     utils::log(
                         utils::LogLevel::Error,
-                        "Invalid language. See `rukoskit config --help` for more info",
+                        "Invalid language. See `ruxgo config --help` for more info",
                     );
                     std::process::exit(1);
                 }
@@ -64,7 +64,7 @@ impl GlobalConfig {
                 } else {
                     utils::log(
                         utils::LogLevel::Error,
-                        "Invalid license file. See `rukoskit config --help` for more info",
+                        "Invalid license file. See `ruxgo config --help` for more info",
                     );
                     std::process::exit(1);
                 }
@@ -72,7 +72,7 @@ impl GlobalConfig {
             _ => {
                 utils::log(
                     utils::LogLevel::Error,
-                    "Invalid parameter. See `rukoskit config --help` for more info",
+                    "Invalid parameter. See `ruxgo config --help` for more info",
                 );
                 std::process::exit(1);
             }

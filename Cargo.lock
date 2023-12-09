@@ -476,21 +476,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rukoskit"
-version = "0.7.17"
-dependencies = [
- "clap",
- "colored",
- "directories",
- "indicatif",
- "itertools",
- "rayon",
- "serde",
- "sha1",
- "toml",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -501,6 +486,21 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "ruxgo"
+version = "0.8.0"
+dependencies = [
+ "clap",
+ "colored",
+ "directories",
+ "indicatif",
+ "itertools",
+ "rayon",
+ "serde",
+ "sha1",
+ "toml",
 ]
 
 [[package]]

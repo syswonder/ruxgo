@@ -1,5 +1,5 @@
 //! This file contains various logging and toml parsing functions
-//! used by the rukoskit library
+//! used by the ruxgo library
 use std::{io::Read, path::Path};
 use std::fs::{self, File};
 use toml::{Table, Value};
@@ -9,9 +9,9 @@ use crate::builder::Target;
 use std::process::{Command, Stdio};
 
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "rukos_bld/obj_win32";
+static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "rukos_bld/obj_linux";
+static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -34,7 +34,7 @@ pub enum LogLevel {
 /// ```
 ///
 /// # Level setting
-/// The log level can be set by setting the environment variable `RUKOSKIT_LOG_LEVEL`
+/// The log level can be set by setting the environment variable `RUXGO_LOG_LEVEL`
 /// to one of the following values:
 /// * `Debug`
 /// * `Info`
@@ -50,7 +50,7 @@ pub fn log(level: LogLevel, message: &str) {
         LogLevel::Warn => "[WARN]".yellow(),
         LogLevel::Error => "[ERROR]".red(),
     };
-    let log_level = match std::env::var("RUKOSKIT_LOG_LEVEL") {
+    let log_level = match std::env::var("RUXGO_LOG_LEVEL") {
         Ok(val) => {
             if val == "Debug" {
                 LogLevel::Debug
@@ -392,7 +392,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             name: parse_cfg_string(target_tb, "name", ""),
             src: parse_cfg_string(target_tb, "src", ""),
             src_excluded: parse_cfg_vector(target_tb, "src_excluded"),
-            include_dir: parse_cfg_string(target_tb, "include_dir", "NULL"),
+            include_dir: parse_cfg_string(target_tb, "include_dir", "./"),
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
             archive: parse_cfg_string(target_tb, "archive", ""),
@@ -590,7 +590,7 @@ impl Package {
     /// Updates the package to latest commit
     pub fn update(&self) {
         let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./rukos_bld/sources/{}", self.name));
+        cmd.push_str(&format!(" ./ruxos_bld/sources/{}", self.name));
         log(LogLevel::Log, &format!("Updating package: {}", self.name));
         cmd.push_str(" &&");
         cmd.push_str(" git");
@@ -617,7 +617,7 @@ impl Package {
     /// Restores package to last offline commit
     pub fn restore(&self) {
         let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./rukos_bld/sources/{}", self.name));
+        cmd.push_str(&format!(" ./ruxos_bld/sources/{}", self.name));
         log(LogLevel::Log, &format!("Updating package: {}", self.name));
         cmd.push_str(" &&");
         cmd.push_str(" git");
@@ -668,7 +668,7 @@ impl Package {
             repo = deets[0].to_string().replace(",", "");
             branch = deets[1].to_string();
             name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
-            let source_dir = format!("./rukos_bld/{}/", branch);
+            let source_dir = format!("./ruxos_bld/{}/", branch);
             // git clone packages
             if !Path::new(&source_dir).exists() {
                 fs::create_dir_all(&source_dir)

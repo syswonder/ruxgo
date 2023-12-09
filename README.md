@@ -1,8 +1,18 @@
-# RukosKit
+# Ruxgo
 
 A Cargo-like build tool for building C and C++ applications
 
 🚧 Working In Progress. 
+
+## Installation
+
+The tool currently only supports local installation
+```console
+git clone https://github.com/Ybeichen/ruxgo.git && cd ruxgo
+cargo build
+cargo install --path .
+```
+For subcommands run with -h flag
 
 ## Features & TODOs
 
@@ -12,25 +22,35 @@ A Cargo-like build tool for building C and C++ applications
 * [x] Auto add project libraries to other targets
 * [x] Get libraries as packages from github
 * [x] Create new project
-* [x] Supported static libraries rust_lib
-* [x] Supported the feature selection
 * [x] Supported run by qemu
-* [x] Supported global configurations
-* [x] Supported rukos and different platforms
-* [x] Supported the exclued src in target
+* [x] Supported ruxos and different platforms
+
+## Supported Apps
+
+The currently supported applications (c):
+
+* [x] helloworld
+* [x] memtest
+* [x] redis
+* [x] sqlite3
 
 ## Usage
 
-Write a config_linux.toml for linux and a config_win32.toml for windows in the project directory
+Write a config_linux.toml for linux and config_win32.toml for windows in the project directory
 
-To create a new project 
+You can then build the project with:
 ```console
-rukoskit init <project-name> [--c|--cpp]
+ruxgo -b
 ```
+
+Once built, you can execute the unikernel via:
+```console
+ruxgo -r
+``
 
 For help
 ```console
-rukoskit --help
+ruxgo --help
 ```
 
 The help command will show you the following
@@ -55,11 +75,3 @@ Options:
   -h, --help                    Print help
   -V, --version                 Print version
 ```
-
-## Installation
-
-The tool currently only supports local installation
-```console
-cargo install --path .
-```
-For subcommands run with -h flag
