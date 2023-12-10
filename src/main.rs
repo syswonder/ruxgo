@@ -1,7 +1,9 @@
+use ruxgo::utils::OSConfig;
 use ruxgo::{utils, commands};
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
 use ruxgo::global_cfg::GlobalConfig;
+use dialoguer::MultiSelect;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -12,6 +14,9 @@ struct Args {
     /// Clean the obj and bin intermediates
     #[arg(short, long)]
     clean: bool,
+    /// Choose which parts to delete
+    #[arg(conflicts_with("clean"))]
+    choices: Vec<String>,
     /// Run the executable
     #[arg(short, long)]
     run: bool,
@@ -157,9 +162,32 @@ license = "NONE"
         std::process::exit(0);
     }
 
+    // If clean flag is provided, prompt user for choices
     if args.clean {
+        let mut items = vec!["All", "Targets_bins", "Obj"];
+        if os_config != OSConfig::default() {
+            items.push("OS");
+            if !os_config.ulib.is_empty() {
+                items.push("Ulib");
+            }
+        }
+        if !packages.is_empty() {
+            items.push("Packages");
+        }
+        let defaults = vec![false; items.len()];
+        let choices = MultiSelect::new()
+            .with_prompt("What parts do you want to clean?")
+            .items(&items)
+            .defaults(&defaults)
+            .interact_opt() //interact_opt allow to quit with 'Esc' or 'q'.
+            .unwrap_or_else(|_| None)
+            .unwrap_or_else(|| Vec::new())
+            .iter()
+            .map(|&index| String::from(items[index]))
+            .collect();
+
         utils::log(utils::LogLevel::Log, "Cleaning...");
-        commands::clean(&targets, &os_config, &packages);
+        commands::clean(&targets, &os_config, &packages, choices);
     }
 
     if args.build {

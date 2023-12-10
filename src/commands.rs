@@ -18,105 +18,47 @@ static TARGET_DIR: &str = "ruxos_bld/target";
 /// Cleans the local targets
 /// # Arguments
 /// * `targets` - A vector of targets to clean
-pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>) {
+pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>, choices: Vec<String>) {
     if Path::new(ROOT_DIR).exists() {
         fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
         });
     }
-    // remove obj
-    if Path::new(OBJ_DIR).exists() {
-        fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
-        });
-        log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
-    }
-    // remove os
-    if Path::new(TARGET_DIR).exists() {
-        fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
-        });
-        log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
-    }
-    // remove ulib
-    let libc_hash_pash = "ruxos_bld/libc.linux.hash";
-    if Path::new(libc_hash_pash).exists() {
-        fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
-        });
-        log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
-    }
-    if Path::new(BUILD_DIR).exists() {
-        let mut ulib_bin_name = String::from("");
-        if os_config.ulib == "axlibc" {
-            ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
-        }
-        if Path::new(&ulib_bin_name).exists() {
-            fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+    // removes os if choice includes "OS" or choice includes "All"
+    if choices.contains(&String::from("OS")) || choices.contains(&String::from("All")) {
+        if Path::new(TARGET_DIR).exists() {
+            fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
             });
-            log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
-        } else {
-            log(LogLevel::Warn, &format!("Binary file does not exist: {}", &ulib_bin_name));
+            log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
         }
     }
-    // romove hashes and bins of other targets
-    for target in targets {
-        #[cfg(target_os = "windows")]
-        let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
-        #[cfg(target_os = "linux")]
-        let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
-        if Path::new(&hash_path).exists() {
-            fs::remove_file(&hash_path).unwrap_or_else(|why| {
+    // removes ulib if choice includes "Ulib" or choice includes "All"
+    if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
+        let libc_hash_pash = "ruxos_bld/libc.linux.hash";
+        if Path::new(libc_hash_pash).exists() {
+            fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
             });
-            log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
+            log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
         }
         if Path::new(BUILD_DIR).exists() {
-            let mut bin_name = String::new();
-            let mut elf_name = String::new();
-            bin_name.push_str(BUILD_DIR);
-            bin_name.push_str("/");
-            bin_name.push_str(&target.name);
-            #[cfg(target_os = "windows")]
-            if target.typ == "exe" {
-                bin_name.push_str(".exe");
-            } else if target.typ == "dll" {
-                bin_name.push_str(".dll");
+            let mut ulib_bin_name = String::from("");
+            if os_config.ulib == "axlibc" {
+                ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
             }
-            #[cfg(target_os = "linux")]
-            if target.typ == "exe" {
-                elf_name = bin_name.clone();
-                bin_name.push_str(".bin");
-                elf_name.push_str(".elf");
-            } else if target.typ == "dll" {
-                bin_name.push_str(".so");
-            } else if target.typ == "static" {
-                bin_name.push_str(".a");
-            } else if target.typ == "object" {
-                bin_name.push_str(".o");
-            }
-            if Path::new(&bin_name).exists() {
-                fs::remove_file(&bin_name).unwrap_or_else(|why| {
+            if Path::new(&ulib_bin_name).exists() {
+                fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
                 });
-                log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
-            } else {
-                log(LogLevel::Warn, &format!("Binary file does not exist: {}", &bin_name));
-            }
-            if Path::new(&elf_name).exists() {
-                fs::remove_file(&elf_name).unwrap_or_else(|why| {
-                    log(LogLevel::Error, &format!("Could not remove ELF file: {}", why));
-                });
-                log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
-            } else {
-                log(LogLevel::Warn, &format!("ELF file does not exist: {}", &elf_name));
+                log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
             }
         }
     }
-    // romove hashes and bins of package
-    for pack in packages {
-        for target in &pack.target_configs {
+    // removes bins of targets if choice includes "Targets_bins" or choice includes "All"
+    if choices.contains(&String::from("Targets_bins")) || choices.contains(&String::from("All")) {
+        // removes local bins of targets
+        for target in targets {
             #[cfg(target_os = "windows")]
             let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
             #[cfg(target_os = "linux")]
@@ -129,15 +71,22 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             }
             if Path::new(BUILD_DIR).exists() {
                 let mut bin_name = String::new();
+                let mut elf_name = String::new();
                 bin_name.push_str(BUILD_DIR);
                 bin_name.push_str("/");
                 bin_name.push_str(&target.name);
                 #[cfg(target_os = "windows")]
-                if target.typ == "dll" {
+                if target.typ == "exe" {
+                    bin_name.push_str(".exe");
+                } else if target.typ == "dll" {
                     bin_name.push_str(".dll");
                 }
                 #[cfg(target_os = "linux")]
-                if target.typ == "dll" {
+                if target.typ == "exe" {
+                    elf_name = bin_name.clone();
+                    bin_name.push_str(".bin");
+                    elf_name.push_str(".elf");
+                } else if target.typ == "dll" {
                     bin_name.push_str(".so");
                 } else if target.typ == "static" {
                     bin_name.push_str(".a");
@@ -149,12 +98,65 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                         log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
                     });
                     log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
-                } else {
-                    log(LogLevel::Warn, &format!("Binary file does not exist: {}", &bin_name));
+                }
+                if Path::new(&elf_name).exists() {
+                    fs::remove_file(&elf_name).unwrap_or_else(|why| {
+                        log(LogLevel::Error, &format!("Could not remove ELF file: {}", why));
+                    });
+                    log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
+                }
+            }
+        }
+        // removes bins of packages if have
+        for pack in packages {
+            for target in &pack.target_configs {
+                #[cfg(target_os = "windows")]
+                let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
+                #[cfg(target_os = "linux")]
+                let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
+                if Path::new(&hash_path).exists() {
+                    fs::remove_file(&hash_path).unwrap_or_else(|why| {
+                        log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
+                    });
+                    log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
+                }
+                if Path::new(BUILD_DIR).exists() {
+                    let mut bin_name = String::new();
+                    bin_name.push_str(BUILD_DIR);
+                    bin_name.push_str("/");
+                    bin_name.push_str(&target.name);
+                    #[cfg(target_os = "windows")]
+                    if target.typ == "dll" {
+                        bin_name.push_str(".dll");
+                    }
+                    #[cfg(target_os = "linux")]
+                    if target.typ == "dll" {
+                        bin_name.push_str(".so");
+                    } else if target.typ == "static" {
+                        bin_name.push_str(".a");
+                    } else if target.typ == "object" {
+                        bin_name.push_str(".o");
+                    }
+                    if Path::new(&bin_name).exists() {
+                        fs::remove_file(&bin_name).unwrap_or_else(|why| {
+                            log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+                        });
+                        log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
+                    }
                 }
             }
         }
     }
+    // removes obj if choice includes "Obj" or choice includes "All"
+    if choices.contains(&String::from("Obj")) || choices.contains(&String::from("All")) {
+        if Path::new(OBJ_DIR).exists() {
+            fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
+            });
+            log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
+        }
+    }
+
 }
 
 /// Cleans the downloaded packages

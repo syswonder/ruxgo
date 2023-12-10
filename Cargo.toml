@@ -1,6 +1,6 @@
 [package]
 name = "ruxgo"
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"
@@ -18,3 +18,4 @@ indicatif = "0.17.3"
 clap = { version = "4.4.6", features = ["derive"] }
 directories = "5.0.1"
 serde = { version = "1.0.190", features = ["derive"] }
+dialoguer = "0.11.0"
