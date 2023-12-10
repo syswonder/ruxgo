@@ -24,6 +24,7 @@ For subcommands run with -h flag
 * [x] Create new project
 * [x] Supported run by qemu
 * [x] Supported ruxos and different platforms
+* [ ] Supported axlibc and musl_libc
 
 ## Supported Apps
 
@@ -33,6 +34,7 @@ The currently supported applications (c):
 * [x] memtest
 * [x] redis
 * [x] sqlite3
+* [ ] python3
 
 ## Usage
 
@@ -55,12 +57,15 @@ ruxgo --help
 
 The help command will show you the following
 ```sh
-Usage: builder_cpp.exe [OPTIONS] [COMMAND]
+Usage: ruxgo [OPTIONS] [CHOICES]... [COMMAND]
 
 Commands:
   init    Initialize a new project Defaults to C++ if no language is specified
   config  Configuration settings
   help    Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [CHOICES]...  Choose which parts to delete
 
 Options:
   -b, --build                   Build your project
@@ -69,7 +74,6 @@ Options:
       --bin-args <BIN_ARGS>...  Arguments to pass to the executable when running
       --gen-cc                  Generate compile_commands.json
       --gen-vsc                 Generate .vscode/c_cpp_properties.json
-      --clean-packages          Clean packages
       --update-packages         Update packages
       --restore-packages        Restore packages
   -h, --help                    Print help
