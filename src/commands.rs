@@ -14,6 +14,7 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 static TARGET_DIR: &str = "ruxos_bld/target";
+static PACKAGES_DIR: &str = "ruxos_bld/packages";
 
 /// Cleans the local targets
 /// # Arguments
@@ -24,15 +25,17 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
         });
     }
+
     // removes os if choice includes "OS" or choice includes "All"
     if choices.contains(&String::from("OS")) || choices.contains(&String::from("All")) {
         if Path::new(TARGET_DIR).exists() {
+            log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
             fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
             });
-            log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
         }
     }
+
     // removes ulib if choice includes "Ulib" or choice includes "All"
     if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
         let libc_hash_pash = "ruxos_bld/libc.linux.hash";
@@ -55,6 +58,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             }
         }
     }
+
     // removes bins of targets if choice includes "Targets_bins" or choice includes "All"
     if choices.contains(&String::from("Targets_bins")) || choices.contains(&String::from("All")) {
         // removes local bins of targets
@@ -64,10 +68,10 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             #[cfg(target_os = "linux")]
             let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
             if Path::new(&hash_path).exists() {
+                log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
                 fs::remove_file(&hash_path).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
                 });
-                log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
             }
             if Path::new(BUILD_DIR).exists() {
                 let mut bin_name = String::new();
@@ -94,16 +98,16 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                     bin_name.push_str(".o");
                 }
                 if Path::new(&bin_name).exists() {
+                    log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
                     fs::remove_file(&bin_name).unwrap_or_else(|why| {
                         log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
                     });
-                    log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
                 }
                 if Path::new(&elf_name).exists() {
+                    log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
                     fs::remove_file(&elf_name).unwrap_or_else(|why| {
                         log(LogLevel::Error, &format!("Could not remove ELF file: {}", why));
                     });
-                    log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
                 }
             }
         }
@@ -115,10 +119,10 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                 #[cfg(target_os = "linux")]
                 let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
                 if Path::new(&hash_path).exists() {
+                    log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
                     fs::remove_file(&hash_path).unwrap_or_else(|why| {
                         log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
                     });
-                    log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
                 }
                 if Path::new(BUILD_DIR).exists() {
                     let mut bin_name = String::new();
@@ -138,55 +142,33 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                         bin_name.push_str(".o");
                     }
                     if Path::new(&bin_name).exists() {
+                        log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
                         fs::remove_file(&bin_name).unwrap_or_else(|why| {
                             log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
                         });
-                        log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
                     }
                 }
             }
         }
     }
+
     // removes obj if choice includes "Obj" or choice includes "All"
     if choices.contains(&String::from("Obj")) || choices.contains(&String::from("All")) {
         if Path::new(OBJ_DIR).exists() {
+            log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
             fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
             });
-            log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
         }
     }
 
-}
-
-/// Cleans the downloaded packages
-/// # Arguments
-/// * `packages` - A vector of packages to clean
-pub fn clean_packages(packages: &Vec<Package>) {
-    log(LogLevel::Log, "Cleaning packages...");
-    for pack in packages {
-        for target in &pack.target_configs {
-            #[cfg(target_os = "windows")]
-            let pack_bin_path = format!("{}/{}.dll", BUILD_DIR, &target.name);
-            #[cfg(target_os = "linux")]
-            let pack_bin_path = format!("{}/{}.so", BUILD_DIR, &target.name);
-
-            if !Path::new(&pack_bin_path).exists() {
-                log(LogLevel::Log, &format!("Package binary does not exist: {}", &pack_bin_path));
-                continue;
-            }
-            let cmd_str = format!("rm {}", &pack_bin_path);
-            log(LogLevel::Debug, cmd_str.as_str());
-            let output = Command::new("sh")
-                .arg("-c")
-                .arg(&cmd_str)
-                .output()
-                .expect("failed to execute process");
-            if output.status.success() {
-                log(LogLevel::Log, &format!("Cleaned package: {} of {}", &pack.name, &pack.repo));
-            } else {
-                log(LogLevel::Error, &format!("Could not clean package: {} of {}", &pack.name, &pack.repo));
-            }
+    // removes downloaded packages if choice includes "Packages" or choice includes "All"
+    if choices.contains(&String::from("Packages")) || choices.contains(&String::from("All")) {
+        if Path::new(PACKAGES_DIR).exists() {
+            log(LogLevel::Log, &format!("Cleaning: {}", PACKAGES_DIR));
+            fs::remove_dir_all(PACKAGES_DIR).unwrap_or_else(|why| {
+                log(LogLevel::Error, &format!("Could not remove packages directory: {}", why));
+            });
         }
     }
 }

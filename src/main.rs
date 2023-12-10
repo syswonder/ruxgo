@@ -32,9 +32,6 @@ struct Args {
     /// Generate .vscode/c_cpp_properties.json
     #[arg(long)]
     gen_vsc: bool,
-    /// Clean packages
-    #[arg(long)]
-    clean_packages: bool,
     /// Update packages
     #[arg(long)]
     update_packages: bool,
@@ -147,11 +144,6 @@ license = "NONE"
 
     let (build_config, os_config, targets, packages) = commands::parse_config();
 
-    if args.clean_packages {
-        commands::clean_packages(&packages);
-        std::process::exit(0);
-    }
-
     if args.update_packages {
         commands::update_packages(&packages);
         std::process::exit(0);
@@ -179,7 +171,7 @@ license = "NONE"
             .with_prompt("What parts do you want to clean?")
             .items(&items)
             .defaults(&defaults)
-            .interact_opt() //interact_opt allow to quit with 'Esc' or 'q'.
+            .interact_opt()
             .unwrap_or_else(|_| None)
             .unwrap_or_else(|| Vec::new())
             .iter()

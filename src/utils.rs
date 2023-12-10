@@ -11,7 +11,6 @@ use std::process::{Command, Stdio};
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -590,7 +589,7 @@ impl Package {
     /// Updates the package to latest commit
     pub fn update(&self) {
         let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./ruxos_bld/sources/{}", self.name));
+        cmd.push_str(&format!(" ./ruxos_bld/packages/{}", self.name));
         log(LogLevel::Log, &format!("Updating package: {}", self.name));
         cmd.push_str(" &&");
         cmd.push_str(" git");
@@ -617,7 +616,7 @@ impl Package {
     /// Restores package to last offline commit
     pub fn restore(&self) {
         let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./ruxos_bld/sources/{}", self.name));
+        cmd.push_str(&format!(" ./ruxos_bld/packages/{}", self.name));
         log(LogLevel::Log, &format!("Updating package: {}", self.name));
         cmd.push_str(" &&");
         cmd.push_str(" git");
@@ -647,16 +646,6 @@ impl Package {
     /// * `path` - The path to the folder containing the package
     pub fn parse_packages(path: &str) -> Vec<Package> {
         let mut packages: Vec<Package> = Vec::new();
-        // initialize fields
-        let mut name = String::new();
-        let mut repo = String::new();
-        let mut branch = String::new();
-        let mut build_config = BuildConfig {
-            compiler: String::new(),
-            packages: Vec::new(),
-        };
-        let mut target_configs = Vec::new();
-        let mut sub_packages: Vec<Package> = Vec::new();
         // parse the root toml file, eg: packages = ["Ybeichen/redis, redis-7.0.12"]
         let (build_config_toml, _ , _) = parse_config(path, false);
         for package in build_config_toml.packages {
@@ -665,10 +654,11 @@ impl Package {
                 log(LogLevel::Error, "Packages must be in the form of \"<git_repo> <branch>\"");
                 std::process::exit(1);
             }
-            repo = deets[0].to_string().replace(",", "");
-            branch = deets[1].to_string();
-            name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
-            let source_dir = format!("./ruxos_bld/{}/", branch);
+            let repo = deets[0].to_string().replace(",", "");
+            let branch = deets[1].to_string();
+            let name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
+            let source_dir = format!("./ruxos_bld/packages/{}/", name);
+            let mut sub_packages: Vec<Package> = Vec::new();
             // git clone packages
             if !Path::new(&source_dir).exists() {
                 fs::create_dir_all(&source_dir)
@@ -700,7 +690,6 @@ impl Package {
             let pkg_toml = format!("{}/config_linux.toml", source_dir).replace("//", "/");
             #[cfg(target_os = "windows")]
             let pkg_toml = format!("{}/config_win32.toml", source_dir).replace("//", "/");
-
             let (pkg_bld_config_toml, _, pkg_targets_toml) = parse_config(&pkg_toml, false);
             log(LogLevel::Info, &format!("Parsed {}", pkg_toml));
 
@@ -713,17 +702,11 @@ impl Package {
             }
 
             // get build_config
-            build_config = pkg_bld_config_toml;
+            let mut build_config = pkg_bld_config_toml;
             build_config.compiler = build_config_toml.compiler.clone(); // use current compiler
-            if !Path::new(OBJ_DIR).exists() {
-                fs::create_dir_all(OBJ_DIR).unwrap_or_else(|error| {
-                    log(LogLevel::Error, &format!("Failed to create {}: {:?}", OBJ_DIR, error));
-                    std::process::exit(1);
-                });
-                log(LogLevel::Info, &format!("Created {}", OBJ_DIR));
-            }
 
             // get tgt_config
+            let mut target_configs = Vec::new();
             let tgt_configs = pkg_targets_toml;
             for mut tgt in tgt_configs {
                 if tgt.typ != "dll" && tgt.typ != "static" && tgt.typ != "object" {
@@ -740,9 +723,9 @@ impl Package {
                     .replace("//", "/");
                 target_configs.push(tgt);
             }
+            packages.push(Package::new(name, repo, branch, build_config, target_configs, sub_packages));
         }
 
-        packages.push(Package::new(name, repo, branch, build_config, target_configs, sub_packages));
         // sort and remove duplicate packages
         packages.sort_by_key(|a| a.name.clone());
         packages.dedup_by_key(|a| a.name.clone());
