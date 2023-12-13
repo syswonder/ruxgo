@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "ruxgo"
-version = "0.8.4"
+version = "0.8.5"
 dependencies = [
  "clap",
  "colored",

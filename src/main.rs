@@ -156,7 +156,7 @@ license = "NONE"
 
     // If clean flag is provided, prompt user for choices
     if args.clean {
-        let mut items = vec!["All", "Targets_bins", "Obj"];
+        let mut items = vec!["All", "App_libs", "Obj"];
         if os_config != OSConfig::default() {
             items.push("OS");
             if !os_config.ulib.is_empty() {

@@ -43,7 +43,10 @@ pub fn cfg_feat_addprefix(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     let lib_feat_prefix = match os_config.ulib.as_str() {
         "axlibc" => "axlibc/",
         "axmusl" => "axmusl/",
-        _ => panic!("Invalid ulib value"),
+        _ => {
+            log(LogLevel::Error, "Invalid ulib value");
+            std::process::exit(1);
+        }
     };
 
     // Add prefix

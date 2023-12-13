@@ -75,8 +75,8 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
         }
     }
 
-    // removes bins of targets if choice includes "Targets_bins" or choice includes "All"
-    if choices.contains(&String::from("Targets_bins")) || choices.contains(&String::from("All")) {
+    // removes bins of targets if choice includes "App_libs" or choice includes "All"
+    if choices.contains(&String::from("App_libs")) || choices.contains(&String::from("All")) {
         // removes local bins of targets
         for target in targets {
             #[cfg(target_os = "windows")]
@@ -242,7 +242,7 @@ pub fn build(
                 inc_dirs.push(target.include_dir.clone());
             }
         }
-        let compiler_path: String = build_config.compiler.clone();
+        let compiler_path: String = build_config.compiler.read().unwrap().clone();
         let mut intellimode: String = String::new();
         if compiler_path == "gcc" || compiler_path == "g++" {
             intellimode = "gcc-x64".to_string();
@@ -467,7 +467,7 @@ fn build_axmusl(build_config: &BuildConfig, os_config: &OSConfig) {
         // config axmusl to generate makefile
         let cmd = format!(
             "{}/configure --prefix=./install --exec-prefix=./ --syslibdir=./install/lib --disable-shared ARCH={} CC={}",
-            ULIB_AXMUSL_SRC, os_config.platform.arch, build_config.compiler);
+            ULIB_AXMUSL_SRC, os_config.platform.arch, build_config.compiler.read().unwrap());
         log(LogLevel::Info, &format!("Command: {}", cmd));
         let configure_output = Command::new("sh")
             .arg("-c")

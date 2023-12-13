@@ -309,7 +309,7 @@ impl<'a> Target<'a> {
         let mut cmd = String::new();
         let mut cmd_bin = String::new();
         if self.target_config.typ == "dll" {
-            cmd.push_str(&self.build_config.compiler);
+            cmd.push_str(&self.build_config.compiler.read().unwrap());
             cmd.push_str(" -shared");
             cmd.push_str(" ");
             cmd.push_str(" -o ");
@@ -363,7 +363,7 @@ impl<'a> Target<'a> {
                 cmd.push_str(obj);
             }
         } else if self.target_config.typ == "object" {
-            cmd.push_str(&self.build_config.compiler);
+            cmd.push_str(&self.build_config.compiler.read().unwrap());
             cmd.push_str(" ");
             cmd.push_str(&self.target_config.ldflags);
             cmd.push_str(" -o ");
@@ -432,7 +432,7 @@ impl<'a> Target<'a> {
                 cmd_bin.push_str(" --strip-all -O binary ");
                 cmd_bin.push_str(&self.bin_path);
             } else {
-                cmd.push_str(&self.build_config.compiler);
+                cmd.push_str(&self.build_config.compiler.read().unwrap());
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.bin_path);
                 for obj in objs {
@@ -502,12 +502,12 @@ impl<'a> Target<'a> {
     fn gen_cc(&self, src: &Src) -> String {
         let mut cc = String::new();
         cc.push_str("{\n");  // Json start
-        if self.build_config.compiler == "clang++" || self.build_config.compiler == "g++" {
+        if *self.build_config.compiler.read().unwrap() == "clang++" || *self.build_config.compiler.read().unwrap() == "g++" {
             cc.push_str("\t\"command\": \"c++");
-        } else if self.build_config.compiler == "clang" || self.build_config.compiler == "gcc" {
+        } else if *self.build_config.compiler.read().unwrap() == "clang" || *self.build_config.compiler.read().unwrap() == "gcc" {
             cc.push_str("\t\"command\": \"cc");
         } else {
-            log(LogLevel::Error, &format!("Compiler: {} is not supported", &self.build_config.compiler));
+            log(LogLevel::Error, &format!("Compiler: {} is not supported", &self.build_config.compiler.read().unwrap()));
             log(LogLevel::Error, "Supported compilers: clang++, g++, clang, gcc");
             std::process::exit(1);
         }
@@ -756,7 +756,7 @@ impl Src {
         dependant_libs: &Vec<Target>
     ) -> Option<String> {
         let mut cmd = String::new();
-        cmd.push_str(&build_config.compiler);
+        cmd.push_str(&build_config.compiler.read().unwrap());
         let mut os_cflags = String::new();
         // Add os_cflags
         if !os_config.name.is_empty() {

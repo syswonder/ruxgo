@@ -1,5 +1,6 @@
 //! This file contains various logging and toml parsing functions
 //! used by the ruxgo library
+use std::sync::{Arc, RwLock};
 use std::{io::Read, path::Path};
 use std::fs::{self, File};
 use toml::{Table, Value};
@@ -75,7 +76,7 @@ pub fn log(level: LogLevel, message: &str) {
 /// Struct descibing the build config of the local project
 #[derive(Debug, Clone)]
 pub struct BuildConfig {
-    pub compiler: String,
+    pub compiler: Arc<RwLock<String>>,
     pub packages: Vec<String>,
 }
 
@@ -93,6 +94,7 @@ pub struct OSConfig {
 pub struct PlatformConfig {
     pub name: String,
     pub arch: String,
+    pub cross_compile: String,
     pub target: String,
     pub smp: String,
     pub mode: String,
@@ -346,13 +348,18 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         log(LogLevel::Error, "Could not find build in config file");
         std::process::exit(1);
     });
-    let compiler= build.get("compiler").unwrap_or_else(|| {
-        log(LogLevel::Error, "Could not find compiler in config file");
-        std::process::exit(1);
-    }).as_str().unwrap_or_else(|| {
-        log(LogLevel::Error, "Compiler is not a string");
-        std::process::exit(1);
-        }).to_string();
+    let compiler= Arc::new(
+        RwLock::new(
+            build.get("compiler").unwrap_or_else(|| {
+                log(LogLevel::Error, "Could not find compiler in config file");
+                std::process::exit(1);
+            }).as_str().unwrap_or_else(|| {
+                log(LogLevel::Error, "Compiler is not a string");
+                std::process::exit(1);
+            }).to_string()
+        )
+    );
+
     let packages = parse_cfg_vector(build, "packages");
     let build_config = BuildConfig {compiler, packages};
 
@@ -378,6 +385,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }
             // Parse platform (if empty, it is the default value)
             let platform = parse_platform(&os_table);
+            *build_config.compiler.write().unwrap() = format!("{}{}", platform.cross_compile, *build_config.compiler.read().unwrap());
             os_config = OSConfig {name, features, ulib, platform};
         } else {
             log(LogLevel::Error, "OS is not a table");
@@ -461,6 +469,7 @@ fn parse_platform(config: &Table) -> PlatformConfig {
     if let Some(platform_table) = platform.as_table() {
         let name = parse_cfg_string(&platform_table, "name", "x86_64-qemu-q35");
         let arch = name.split("-").next().unwrap_or("x86_64").to_string();
+        let cross_compile = format!("{}-linux-musl-", arch);
         let target = match &arch[..] {
             "x86_64" => "x86_64-unknown-none".to_string(),
             "riscv64" => "riscv64gc-unknown-none-elf".to_string(),
@@ -474,15 +483,15 @@ fn parse_platform(config: &Table) -> PlatformConfig {
         let mode = parse_cfg_string(&platform_table, "mode", "release");
         let log = parse_cfg_string(&platform_table, "log", "warn");
         let v = parse_cfg_string(&platform_table, "v", "");
-        // Determine whether enable qemu
+        // determine whether enable qemu
         let qemu: QemuConfig;
         if name.split("-").any(|s| s == "qemu") {
-            // Parse qemu (if empty, it is the default value)
+            // parse qemu (if empty, it is the default value)
             qemu = parse_qemu(&arch, &platform_table);
         } else {
             qemu = QemuConfig::default();
         }
-        PlatformConfig {name, arch, target, smp, mode, log, v, qemu}
+        PlatformConfig {name, arch, cross_compile, target, smp, mode, log, v, qemu}
     } else {
         log(LogLevel::Error, "Platform is not a table");
         std::process::exit(1);

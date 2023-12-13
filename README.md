@@ -24,7 +24,7 @@ For subcommands run with -h flag
 * [x] Create new project
 * [x] Supported run by qemu
 * [x] Supported ruxos and different platforms
-* [ ] Supported axlibc and musl_libc
+* [x] Supported axlibc and axmusl
 
 ## Supported Apps
 
