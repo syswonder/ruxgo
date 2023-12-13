@@ -1,16 +1,15 @@
 use crate::utils::{OSConfig, log, LogLevel};
 
 pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
-    let lib_features = vec![
+    let mut lib_features = vec![
         "fp_simd", "alloc", "multitask", "fs", "net", "fd", "pipe", "select", "poll", "epoll", "random-hw", "signal"
         ]; 
-    let mut features= os_config.features.clone();
-    if features.iter().any(|feat| {
-        feat == "fs" || feat == "net" || feat == "pipe" || feat == "select" || feat == "epoll"
-    }) {
-        features.push("fd".to_string());
+    if os_config.ulib == "axmusl" {
+        lib_features.push("irq");
+        lib_features.push("musl");
+        lib_features.push("sched_rr");
     }
-    
+
     let mut ax_feats = Vec::new();
     let mut lib_feats = Vec::new();
 
@@ -28,7 +27,7 @@ pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     }
 
     // get content of features
-    for feat in features {
+    for feat in os_config.features.clone() {
         if !lib_features.contains(&feat.as_str()) {
             ax_feats.push(feat);
         } else {
@@ -41,7 +40,11 @@ pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
 pub fn cfg_feat_addprefix(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     // Set prefix
     let ax_feat_prefix = "axfeat/";
-    let lib_feat_prefix = "axlibc/";
+    let lib_feat_prefix = match os_config.ulib.as_str() {
+        "axlibc" => "axlibc/",
+        "axmusl" => "axmusl/",
+        _ => panic!("Invalid ulib value"),
+    };
 
     // Add prefix
     let (ax_feats_pre, lib_feats_pre) = cfg_feat(os_config);

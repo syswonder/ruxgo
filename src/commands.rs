@@ -15,10 +15,17 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 static TARGET_DIR: &str = "ruxos_bld/target";
 static PACKAGES_DIR: &str = "ruxos_bld/packages";
+// axmusl info
+static AXMUSL_DIR: &str = "ruxos_bld/axmusl";
+static ULIB_AXMUSL: &str = concat!(env!("HOME"), "/ruxos/ulib/axmusl");
+static ULIB_AXMUSL_SRC: &str = concat!(env!("HOME"), "/ruxos/ulib/axmusl/musl-1.2.3");
 
 /// Cleans the local targets
 /// # Arguments
 /// * `targets` - A vector of targets to clean
+/// * `os_config` - The local os configuration
+/// * `packages` - A vector of packages to clean
+/// * `choices` - A vector of choices to select which components to delete
 pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>, choices: Vec<String>) {
     if Path::new(ROOT_DIR).exists() {
         fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {
@@ -38,23 +45,32 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
 
     // removes ulib if choice includes "Ulib" or choice includes "All"
     if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
-        let libc_hash_pash = "ruxos_bld/libc.linux.hash";
-        if Path::new(libc_hash_pash).exists() {
-            fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
-            });
-            log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
-        }
-        if Path::new(BUILD_DIR).exists() {
-            let mut ulib_bin_name = String::from("");
-            if os_config.ulib == "axlibc" {
-                ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
-            }
-            if Path::new(&ulib_bin_name).exists() {
-                fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
-                    log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+        if os_config.ulib == "axlibc" {
+            let libc_hash_pash = "ruxos_bld/libc.linux.hash";
+            if Path::new(libc_hash_pash).exists() {
+                fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
                 });
-                log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
+                log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
+            }
+            if Path::new(BUILD_DIR).exists() {
+                let mut ulib_bin_name = String::from("");
+                if os_config.ulib == "axlibc" {
+                    ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
+                }
+                if Path::new(&ulib_bin_name).exists() {
+                    fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
+                        log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
+                    });
+                    log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
+                }
+            }
+        } else if os_config.ulib == "axmusl" {
+            if Path::new(AXMUSL_DIR).exists() {
+                log(LogLevel::Log, &format!("Cleaning: {}", AXMUSL_DIR));
+                fs::remove_dir_all(AXMUSL_DIR).unwrap_or_else(|why| {
+                    log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
+                });
             }
         }
     }
@@ -326,13 +342,17 @@ pub fn build(
     
     // Construct os and ulib
     if os_config != &OSConfig::default() {
-        // get features
         let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-        log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-        build_os(&os_config.platform, &ax_feats_final, &lib_feats_final);
-        // construct ulib
         if os_config.ulib == "axlibc" {
-            build_ulib(build_config, os_config, gen_cc, "libc");
+            log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
+            build_os(&os_config, &os_config.ulib, &ax_feats_final, &lib_feats_final);
+            log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
+            build_axlibc(build_config, os_config, gen_cc);
+        } else if os_config.ulib == "axmusl" {
+            log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
+            build_os(&os_config, &os_config.ulib, &ax_feats_final, &lib_feats_final);
+            log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
+            build_axmusl(build_config, os_config);
         }
     };
 
@@ -361,13 +381,13 @@ pub fn build(
 }
 
 /// Builds the specified os
-fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
-    let target = format!("--target {}", platform_config.target);
+fn build_os(os_config: &OSConfig, ulib: &str, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
+    let target = format!("--target {}", os_config.platform.target);
     let target_dir = format!("--target-dir {}/target", ROOT_DIR);
-    let mode = format!("--{}", platform_config.mode);
-    let axlibc = "-p axlibc";
+    let mode = format!("--{}", os_config.platform.mode);
+    let os_ulib = format!("-p {}", ulib);
     // add verbose
-    let verbose = match platform_config.v.as_str() {
+    let verbose = match os_config.platform.v.as_str() {
         "1" => "-v",
         "2" => "-vv",
         _ => "",
@@ -376,7 +396,7 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
     let features = [&ax_feats[..], &lib_feats[..]].concat().join(" ");
     let cmd = format!(
         "cargo build {} {} {} {} {} --features \"{}\"",
-        target, target_dir, mode, axlibc, verbose, features
+        target, target_dir, mode, os_ulib, verbose, features
     );
     log(LogLevel::Info, &format!("Command: {}", cmd));
     let output = Command::new("sh")
@@ -393,8 +413,8 @@ fn build_os(platform_config: &PlatformConfig, ax_feats: &Vec<String>, lib_feats:
     }
 } 
 
-/// Builds the specified ulib
-fn build_ulib(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool, name: &str) {
+/// Builds the axlibc
+fn build_axlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) {
     if !Path::new(BUILD_DIR).exists() {
         fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
@@ -402,7 +422,7 @@ fn build_ulib(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool, na
         })
     }
     let ulib_tgt = TargetConfig {
-        name: name.to_string(),
+        name: "libc".to_string(),
         src: format!("{}/{}/ulib/axlibc/c", env!("HOME"), os_config.name),
         src_excluded: Vec::new(),
         include_dir: format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name),
@@ -416,6 +436,75 @@ fn build_ulib(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool, na
     let ulib_packages = Vec::new();
     let mut tgt = Target::new(build_config, os_config, &ulib_tgt, &ulib_targets, &ulib_packages);
     tgt.build(gen_cc);
+}
+
+/// Builds the axmusl
+fn build_axmusl(build_config: &BuildConfig, os_config: &OSConfig) {
+    if !Path::new(AXMUSL_DIR).exists() {
+        // download axmusl
+        if !Path::new(ULIB_AXMUSL_SRC).exists() {
+            log(LogLevel::Info, "Downloading musl-1.2.3 source code");
+            Command::new("wget")
+                .args(&["https://musl.libc.org/releases/musl-1.2.3.tar.gz", "-P", ULIB_AXMUSL])
+                .spawn().expect("Failed to execute command")
+                .wait().expect("Failed to wait for command");
+            Command::new("tar")
+                .args(&["-zxvf", &format!("{}/musl-1.2.3.tar.gz", ULIB_AXMUSL), "-C", ULIB_AXMUSL])
+                .spawn().expect("Failed to execute command")
+                .wait().expect("Failed to wait for command");
+            Command::new("rm")
+                .args(&["-f", &format!("{}/musl-1.2.3.tar.gz", ULIB_AXMUSL)])
+                .spawn().expect("Failed to execute command")
+                .wait().expect("Failed to wait for command");
+        }
+
+        // create ruxos_bld/axmusl
+        fs::create_dir_all(AXMUSL_DIR).unwrap_or_else(|why| {
+            log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
+            std::process::exit(1);
+        });
+
+        // config axmusl to generate makefile
+        let cmd = format!(
+            "{}/configure --prefix=./install --exec-prefix=./ --syslibdir=./install/lib --disable-shared ARCH={} CC={}",
+            ULIB_AXMUSL_SRC, os_config.platform.arch, build_config.compiler);
+        log(LogLevel::Info, &format!("Command: {}", cmd));
+        let configure_output = Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .current_dir(AXMUSL_DIR)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output()
+            .expect("Failed to execute configure command");
+        if !configure_output.status.success() {
+            log(LogLevel::Error, &format!("configure command execution failed: {:?}", configure_output.stderr));
+            std::process::exit(1);
+        }
+
+        // compile and install axmusl
+        log(LogLevel::Log, "Musl source code is installing...");
+        let make_output = Command::new("make")
+            .args(&["-j"])
+            .current_dir(AXMUSL_DIR)
+            .output()
+            .expect("Failed to run make command");
+        if !make_output.status.success() {
+            log(LogLevel::Error, &format!("\"make -j\" command execution failed: {:?}", make_output.status.code()));
+            std::process::exit(1);
+        }
+        let make_install_output = Command::new("make")
+            .args(&["install"])
+            .current_dir(AXMUSL_DIR)
+            .stderr(Stdio::inherit())
+            .output()
+            .expect("Failed to run make install command");
+        if !make_install_output.status.success() {
+            log(LogLevel::Error, &format!("\"make install\" command execution failed: {:?}", make_install_output.status.code()));
+            std::process::exit(1);
+        }
+    }
 }
 
 /// Runs the exe target
@@ -444,7 +533,7 @@ pub fn run (
         if os_config.platform.qemu.blk == "y" {
             let path = Path::new(&os_config.platform.qemu.disk_img);
             if path.exists() {
-                log(LogLevel::Warn, &format!("disk image \"{}\" already exists!", os_config.platform.qemu.disk_img));
+                log(LogLevel::Log, &format!("disk image \"{}\" already exists!", os_config.platform.qemu.disk_img));
             } else {
                 make_disk_image_fat32(&os_config.platform.qemu.disk_img);
             }
@@ -759,6 +848,10 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
                 std::env::set_var("AX_ANAME_9P", "./");
                 std::env::set_var("AX_PROTOCOL_9P", "9P2000.L");
             }
+        }
+        // musl
+        if os_config.ulib == "axmusl" {
+            std::env::set_var("AX_MUSL", "y");
         }
     } 
 

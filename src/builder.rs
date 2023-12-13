@@ -20,9 +20,14 @@ static BUILD_DIR: &str = "ruxos_bld/bin";
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
-// Add rust_lib and c_lib
-static RUST_LIB: &str = "libaxlibc.a"; 
-static C_LIB: &str = "libc.a";
+// axlibc info
+static AXLIBC_INC: &str = concat!(env!("HOME"), "/ruxos/ulib/axlibc/include");
+static AXLIBC_C_LIB: &str = "ruxos_bld/bin/libc.a";
+static AXLIBC_RUST_LIB: &str = "libaxlibc.a";
+// axmusl info
+static AXMUSL_INC: &str = "ruxos_bld/axmusl/install/include";
+static AXMUSL_C_LIB: &str = "ruxos_bld/axmusl/install/lib/libc.a";
+static AXMUSL_RUST_LIB: &str = "libaxmusl.a";
 
 /// Represents a target
 pub struct Target<'a> {
@@ -390,18 +395,28 @@ impl<'a> Target<'a> {
                 ldflags.push_str(" ");
                 ldflags.push_str(&os_ldflags);
                 cmd.push_str(&ldflags);
-                // link ulib
-                cmd.push_str(" ");
-                cmd.push_str(&format!("{}/{}", BUILD_DIR, C_LIB));
-                // link os
-                cmd.push_str(" ");
-                cmd.push_str(&format!("{}/target/{}/{}/{}", 
-                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUST_LIB));
+
+                // link ulib and os
+                if self.os_config.ulib == "axlibc" {
+                    cmd.push_str(" ");
+                    cmd.push_str(AXLIBC_C_LIB);
+                    cmd.push_str(" ");
+                    cmd.push_str(&format!("{}/target/{}/{}/{}",
+                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, AXLIBC_RUST_LIB));
+                } else if self.os_config.ulib == "axmusl" {
+                    cmd.push_str(" ");
+                    cmd.push_str(AXMUSL_C_LIB);
+                    cmd.push_str(" ");
+                    cmd.push_str(&format!("{}/target/{}/{}/{}",
+                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, AXMUSL_RUST_LIB));
+                }
+
                 // link other obj
                 for obj in objs {
                     cmd.push_str(" ");
                     cmd.push_str(obj);
                 }
+
                 // link other dependant libraries
                 for dep_target in dep_targets {
                     cmd.push_str(" ");
@@ -409,7 +424,8 @@ impl<'a> Target<'a> {
                 }
                 cmd.push_str(" -o ");
                 cmd.push_str(&self.elf_path);
-                // generate a .bin file
+
+                // generate a bin file
                 cmd_bin.push_str(&format!("rust-objcopy --binary-architecture={}", &self.os_config.platform.arch));
                 cmd_bin.push_str(" ");
                 cmd_bin.push_str(&self.elf_path);
@@ -743,21 +759,28 @@ impl Src {
         cmd.push_str(&build_config.compiler);
         let mut os_cflags = String::new();
         // Add os_cflags
-        if !os_config.name.is_empty() && os_config.ulib == "axlibc"{
-            let (_, lib_feats) = cfg_feat(os_config);
-            // generate the preprocessing macro definition
-            for lib_feat in lib_feats {
-                let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
-                os_cflags.push_str(&format!(" -DAX_CONFIG_{}", &processed_lib_feat));
+        if !os_config.name.is_empty() {
+            if os_config.ulib == "axlibc" {
+                let (_, lib_feats) = cfg_feat(os_config);
+                // generate the preprocessing macro definition
+                for lib_feat in lib_feats {
+                    let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
+                    os_cflags.push_str(&format!(" -DAX_CONFIG_{}", &processed_lib_feat));
+                }
+                os_cflags.push_str(&format!(" -DAX_CONFIG_{}", os_config.platform.log.to_uppercase()));
+                os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
+                os_cflags.push_str(" -I");
+                os_cflags.push_str(AXLIBC_INC);
+                os_cflags.push_str(" ");
+            } else if os_config.ulib == "axmusl" {
+                os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
+                os_cflags.push_str(" -I");
+                os_cflags.push_str(AXMUSL_INC);
+                os_cflags.push_str(" ");
             }
-            os_cflags.push_str(&format!(" -DAX_CONFIG_{}", os_config.platform.log.to_uppercase()));
             if os_config.platform.mode == "release" {
                 os_cflags.push_str(" -O3");
             }
-            os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
-            os_cflags.push_str(" -I");
-            os_cflags.push_str(&format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name));
-            os_cflags.push_str(" ");
             if os_config.platform.arch == "riscv64" {
                 os_cflags.push_str(" -march=rv64gc -mabi=lp64d -mcmodel=medany");
             }
@@ -769,6 +792,7 @@ impl Src {
                 }
             }
         }
+
         let mut cflags = String::new();
         cflags.push_str(&os_cflags);
         cflags.push_str(" ");
@@ -790,7 +814,6 @@ impl Src {
         cmd.push_str(" -c ");
         cmd.push_str(&self.path);
 
-        //? consider add static general options
         if target_config.typ == "dll" {
             cmd.push_str(" -fPIC");
         }

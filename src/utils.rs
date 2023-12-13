@@ -363,8 +363,19 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
     if os != &empty_os {
         if let Some(os_table) = os.as_table() {
             let name = parse_cfg_string(&os_table, "name", "");
-            let features = parse_cfg_vector(&os_table, "services");
-            let ulib = parse_cfg_string(&os_table, "ulib", "axlibc");
+            let ulib = parse_cfg_string(&os_table, "ulib", "");
+            let mut features = parse_cfg_vector(&os_table, "services");
+            if features.iter().any(|feat| {
+                feat == "fs" || feat == "net" || feat == "pipe" || feat == "select" || feat == "poll" || feat == "epoll"
+            }) {
+                features.push("fd".to_string());
+            }
+            if ulib == "axmusl" {
+                features.push("musl".to_string());
+                features.push("fp_simd".to_string());
+                features.push("fd".to_string());
+                features.push("tls".to_string());
+            }
             // Parse platform (if empty, it is the default value)
             let platform = parse_platform(&os_table);
             os_config = OSConfig {name, features, ulib, platform};
