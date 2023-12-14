@@ -1,0 +1,35 @@
+[build]
+compiler = "gcc"
+packages = ["Ybeichen/redis, redis-7.0.12"]
+
+[os]
+name = "ruxos"
+services = ["alloc","paging","irq","fp_simd","multitask","fs","blkfs","net","pipe","epoll","poll","rtc","virtio-9p"]
+ulib = "axlibc"
+
+[os.platform]
+name = "x86_64-qemu-q35"
+smp = "2"
+mode = "release"
+log = "error"
+
+[os.platform.qemu]
+blk = "y"
+net = "y"
+graphic = "n"
+disk_img = "disk.img"
+args = "./redis-server,/v9fs/redis.conf"
+v9p = "y" 
+v9p_path = "./"
+net_dev = "user"
+IP = "10.0.2.15"
+GW = "10.0.2.2"
+
+[[targets]]
+name = "ruxos_redis"
+src = ""
+include_dir = ""
+type = "exe"
+cflags = "-static -no-pie"   # Local compilation needs
+ldflags = "rust-lld -flavor gnu"
+deps = ["libredis_server"]

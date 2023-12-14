@@ -1,0 +1,23 @@
+[build]
+compiler = "gcc"
+
+[os]
+name = "ruxos"
+services = []
+ulib = "axlibc"
+
+[platform]
+name = "x86_64-qemu-q35"
+mode = "release"
+log = "info"
+
+[platform.qemu]
+graphic = "y"
+
+[[targets]]
+name = "helloworld"
+src = "./"
+include_dir = "./"
+type = "exe"
+cflags = ""
+ldflags = "rust-lld -flavor gnu"

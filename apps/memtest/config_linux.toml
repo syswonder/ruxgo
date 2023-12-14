@@ -1,0 +1,24 @@
+[build]
+compiler = "gcc"
+
+[os]
+name = "ruxos"
+services = ["alloc","paging"]
+ulib = "axlibc"
+
+[os.platform]
+name = "x86_64-qemu-q35"
+smp = "4"
+mode = "release"
+log = "warn"
+
+[os.platform.qemu]
+graphic = "y"
+
+[[targets]]
+name = "memtest"
+src = "./"
+include_dir = "./"
+type = "exe"
+cflags = ""
+ldflags = "rust-lld -flavor gnu"
