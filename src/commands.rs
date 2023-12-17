@@ -547,6 +547,7 @@ pub fn run (
                 cmd.arg(arg);
             }
         }
+        log(LogLevel::Info, &format!("Command: {:?}", cmd));
         // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
         cmd.stdin(Stdio::inherit())
             .stdout(Stdio::inherit())

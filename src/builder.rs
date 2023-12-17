@@ -440,8 +440,9 @@ impl<'a> Target<'a> {
                     cmd.push_str(obj);
                 }
                 cmd.push_str(" ");
-                cmd.push_str(&self.target_config.cflags);
+                cmd.push_str(&self.target_config.ldflags);
                 cmd.push_str(" ");
+
                 // link other dependant libraries
                 for dep_target in dep_targets {
                     if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {

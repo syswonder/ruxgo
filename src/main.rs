@@ -24,7 +24,7 @@ struct Args {
     #[command(subcommand)]
     commands: Option<Commands>,
     /// Arguments to pass to the executable when running
-    #[arg(long, num_args(1..))]
+    #[arg(long, num_args(1..), require_equals(true), value_delimiter(','))]
     bin_args: Option<Vec<String>>,
     /// Generate compile_commands.json
     #[arg(long)]
