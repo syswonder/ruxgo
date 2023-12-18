@@ -20,14 +20,14 @@ static BUILD_DIR: &str = "ruxos_bld/bin";
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
-// axlibc info
-static AXLIBC_INC: &str = concat!(env!("HOME"), "/ruxos/ulib/axlibc/include");
-static AXLIBC_C_LIB: &str = "ruxos_bld/bin/libc.a";
-static AXLIBC_RUST_LIB: &str = "libaxlibc.a";
-// axmusl info
-static AXMUSL_INC: &str = "ruxos_bld/axmusl/install/include";
-static AXMUSL_C_LIB: &str = "ruxos_bld/axmusl/install/lib/libc.a";
-static AXMUSL_RUST_LIB: &str = "libaxmusl.a";
+// ruxlibc info
+static RUXLIBC_INC: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxlibc/include");
+static RUXLIBC_C_LIB: &str = "ruxos_bld/bin/libc.a";
+static RUXLIBC_RUST_LIB: &str = "libruxlibc.a";
+// ruxmusl info
+static RUXMUSL_INC: &str = "ruxos_bld/ruxmusl/install/include";
+static RUXMUSL_C_LIB: &str = "ruxos_bld/ruxmusl/install/lib/libc.a";
+static RUXMUSL_RUST_LIB: &str = "libruxmusl.a";
 
 /// Represents a target
 pub struct Target<'a> {
@@ -383,7 +383,7 @@ impl<'a> Target<'a> {
                 let mut os_ldflags = String::new();
                 os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
                 let ld_script = format!(
-                    "{}/{}/modules/axhal/linker_{}.lds",
+                    "{}/{}/modules/ruxhal/linker_{}.lds",
                      env!("HOME"), self.os_config.name, self.os_config.platform.name
                 );
                 os_ldflags.push_str(&format!(" -T{}", &ld_script));
@@ -397,18 +397,18 @@ impl<'a> Target<'a> {
                 cmd.push_str(&ldflags);
 
                 // link ulib and os
-                if self.os_config.ulib == "axlibc" {
+                if self.os_config.ulib == "ruxlibc" {
                     cmd.push_str(" ");
-                    cmd.push_str(AXLIBC_C_LIB);
-                    cmd.push_str(" ");
-                    cmd.push_str(&format!("{}/target/{}/{}/{}",
-                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, AXLIBC_RUST_LIB));
-                } else if self.os_config.ulib == "axmusl" {
-                    cmd.push_str(" ");
-                    cmd.push_str(AXMUSL_C_LIB);
+                    cmd.push_str(RUXLIBC_C_LIB);
                     cmd.push_str(" ");
                     cmd.push_str(&format!("{}/target/{}/{}/{}",
-                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, AXMUSL_RUST_LIB));
+                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
+                } else if self.os_config.ulib == "ruxmusl" {
+                    cmd.push_str(" ");
+                    cmd.push_str(RUXMUSL_C_LIB);
+                    cmd.push_str(" ");
+                    cmd.push_str(&format!("{}/target/{}/{}/{}",
+                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));
                 }
 
                 // link other obj
@@ -473,10 +473,10 @@ impl<'a> Target<'a> {
             .output()
             .expect("failed to execute process");
         if output.status.success() {
-            log(LogLevel::Info, "  Linking successful");
+            log(LogLevel::Log, "Linking successful");
             hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
         } else {
-            log(LogLevel::Error, "  Linking failed");
+            log(LogLevel::Error, "Linking failed");
             log(LogLevel::Error, &format!(" Command: {}", &cmd));
             log(LogLevel::Error, &format!("  Error: {}", String::from_utf8_lossy(&output.stderr)));
             std::process::exit(1);
@@ -761,22 +761,22 @@ impl Src {
         let mut os_cflags = String::new();
         // Add os_cflags
         if !os_config.name.is_empty() {
-            if os_config.ulib == "axlibc" {
+            if os_config.ulib == "ruxlibc" {
                 let (_, lib_feats) = cfg_feat(os_config);
                 // generate the preprocessing macro definition
                 for lib_feat in lib_feats {
                     let processed_lib_feat = lib_feat.to_uppercase().replace("-", "_");
-                    os_cflags.push_str(&format!(" -DAX_CONFIG_{}", &processed_lib_feat));
+                    os_cflags.push_str(&format!(" -DRUX_CONFIG_{}", &processed_lib_feat));
                 }
-                os_cflags.push_str(&format!(" -DAX_CONFIG_{}", os_config.platform.log.to_uppercase()));
+                os_cflags.push_str(&format!(" -DRUX_CONFIG_{}", os_config.platform.log.to_uppercase()));
                 os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
                 os_cflags.push_str(" -I");
-                os_cflags.push_str(AXLIBC_INC);
+                os_cflags.push_str(RUXLIBC_INC);
                 os_cflags.push_str(" ");
-            } else if os_config.ulib == "axmusl" {
+            } else if os_config.ulib == "ruxmusl" {
                 os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
                 os_cflags.push_str(" -I");
-                os_cflags.push_str(AXMUSL_INC);
+                os_cflags.push_str(RUXMUSL_INC);
                 os_cflags.push_str(" ");
             }
             if os_config.platform.mode == "release" {

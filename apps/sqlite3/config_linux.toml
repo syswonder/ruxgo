@@ -4,7 +4,7 @@ compiler = "gcc"
 [os]
 name = "ruxos"
 services = ["fp_simd","alloc","paging","fs","blkfs"]
-ulib = "axlibc"
+ulib = "ruxlibc"
 
 [os.platform]
 name = "x86_64-qemu-q35"

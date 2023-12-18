@@ -2,7 +2,7 @@
 
 Ruxgo is a Cargo-like build tool for building C and C++ applications that relies on Toml files to run. If running in a Linux environment, you need to configure `config_linux.toml`, if in windows, the `config_win32.toml` is required. 
 
-For a project to build, you only need to simply fill in the source file path, include directory path, cflags, ldflags and other options. Ruxgo does the rest, so easy! It abandons the complex syntax and rule-dependent construction in the original MAKE tool, exposing the most original gcc compilation process, back to nature to truly understand the intention of each step. Now start to explore the compilation of various applications!
+For a project to build, you only need to simply fill in the source file path, header file path, cflags, ldflags and other options. Ruxgo does the rest, so easy! It abandons the complex syntax and rule-dependent construction in the original MAKE tool, exposing the most original gcc compilation process, back to nature to truly understand the intention of each step. Now start to explore the compilation of various applications!
 
 🚧 Working In Progress. 
 
@@ -24,7 +24,7 @@ cargo install --path .
 * [x] Get libraries as packages from github
 * [x] Supported ruxos and different platforms
 * [x] Supported run by qemu
-* [x] Supported axlibc and axmusl
+* [x] Supported ruxlibc and ruxmusl
 * [ ] Create new project
 
 ## Supported Apps
@@ -110,7 +110,7 @@ When the platform of the **[os]** module is "x86_64-qemu-q35", the compiler is n
 
 - `name`: Specifies the name of the os.
 - `services`: Specifies the services that the os can provide, similar to the features in ruxos.
-- `ulib`: The user library you want to use, the options are: "axlibc", "axmusl".
+- `ulib`: The user library you want to use, the options are: "ruxlibc", "ruxmusl".
 - `platform`：If needed, configure it in **[os.platform]**.
 
 If you want to configure the platform further, you can do so in **[os.platform]** , if empty, take the default value. The details are as follows:
@@ -174,7 +174,7 @@ compiler = "gcc"
 [os]
 name = "ruxos"
 services = ["fp_simd","alloc","paging","fs","blkfs"]
-ulib = "axlibc"
+ulib = "ruxlibc"
 
 [os.platform]
 name = "x86_64-qemu-q35"

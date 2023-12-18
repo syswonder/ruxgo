@@ -72,7 +72,7 @@ enum Commands {
 }
 
 fn main() {
-    // Add global_config
+    // Add global config
     let project_dirs = ProjectDirs::from("com", "RuxosApps", "ruxos-c").unwrap();
     let config_dir = project_dirs.config_dir();
     if !config_dir.exists() {
@@ -143,6 +143,9 @@ license = "NONE"
     }
 
     let (build_config, os_config, targets, packages) = commands::parse_config();
+
+    // Add environment config
+    utils::config_env(&os_config);
 
     if args.update_packages {
         commands::update_packages(&packages);

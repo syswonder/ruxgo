@@ -1,0 +1,11 @@
+[build]
+compiler = "gcc"
+
+[[targets]]
+name = "ruxos_iperf"
+src = "./src"
+src_excluded = ["t_timer.c","t_units.c","t_uuid.c"]
+include_dir = "./src"
+type = "exe"
+cflags = "-DHAVE_CONFIG_H -g -O2 -Wall"
+ldflags = "-g -O2 -Wall -lm"

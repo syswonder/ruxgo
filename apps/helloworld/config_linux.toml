@@ -4,7 +4,7 @@ compiler = "gcc"
 [os]
 name = "ruxos"
 services = []
-ulib = "axlibc"
+ulib = "ruxlibc"
 
 [platform]
 name = "x86_64-qemu-q35"

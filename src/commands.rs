@@ -1,6 +1,6 @@
 use crate::builder::Target;
 use crate::global_cfg::GlobalConfig;
-use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, PlatformConfig, QemuConfig, Package, log, LogLevel};
+use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, QemuConfig, Package, log, LogLevel};
 use crate::features;
 use std::path::Path;
 use std::io::Write;
@@ -15,10 +15,10 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 static TARGET_DIR: &str = "ruxos_bld/target";
 static PACKAGES_DIR: &str = "ruxos_bld/packages";
-// axmusl info
-static AXMUSL_DIR: &str = "ruxos_bld/axmusl";
-static ULIB_AXMUSL: &str = concat!(env!("HOME"), "/ruxos/ulib/axmusl");
-static ULIB_AXMUSL_SRC: &str = concat!(env!("HOME"), "/ruxos/ulib/axmusl/musl-1.2.3");
+// ruxmusl info
+static RUXMUSL_DIR: &str = "ruxos_bld/ruxmusl";
+static ULIB_RUXMUSL: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxmusl");
+static ULIB_RUXMUSL_SRC: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxmusl/musl-1.2.3");
 
 /// Cleans the local targets
 /// # Arguments
@@ -45,7 +45,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
 
     // removes ulib if choice includes "Ulib" or choice includes "All"
     if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
-        if os_config.ulib == "axlibc" {
+        if os_config.ulib == "ruxlibc" {
             let libc_hash_pash = "ruxos_bld/libc.linux.hash";
             if Path::new(libc_hash_pash).exists() {
                 fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
@@ -55,7 +55,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             }
             if Path::new(BUILD_DIR).exists() {
                 let mut ulib_bin_name = String::from("");
-                if os_config.ulib == "axlibc" {
+                if os_config.ulib == "ruxlibc" {
                     ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
                 }
                 if Path::new(&ulib_bin_name).exists() {
@@ -65,10 +65,10 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                     log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
                 }
             }
-        } else if os_config.ulib == "axmusl" {
-            if Path::new(AXMUSL_DIR).exists() {
-                log(LogLevel::Log, &format!("Cleaning: {}", AXMUSL_DIR));
-                fs::remove_dir_all(AXMUSL_DIR).unwrap_or_else(|why| {
+        } else if os_config.ulib == "ruxmusl" {
+            if Path::new(RUXMUSL_DIR).exists() {
+                log(LogLevel::Log, &format!("Cleaning: {}", RUXMUSL_DIR));
+                fs::remove_dir_all(RUXMUSL_DIR).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
                 });
             }
@@ -342,17 +342,17 @@ pub fn build(
     
     // Construct os and ulib
     if os_config != &OSConfig::default() {
-        let (ax_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-        if os_config.ulib == "axlibc" {
+        let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
+        if os_config.ulib == "ruxlibc" {
             log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-            build_os(&os_config, &os_config.ulib, &ax_feats_final, &lib_feats_final);
+            build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
             log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
-            build_axlibc(build_config, os_config, gen_cc);
-        } else if os_config.ulib == "axmusl" {
+            build_ruxlibc(build_config, os_config, gen_cc);
+        } else if os_config.ulib == "ruxmusl" {
             log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-            build_os(&os_config, &os_config.ulib, &ax_feats_final, &lib_feats_final);
+            build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
             log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
-            build_axmusl(build_config, os_config);
+            build_ruxmusl(build_config, os_config);
         }
     };
 
@@ -381,7 +381,7 @@ pub fn build(
 }
 
 /// Builds the specified os
-fn build_os(os_config: &OSConfig, ulib: &str, ax_feats: &Vec<String>, lib_feats: &Vec<String>) {
+fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats: &Vec<String>) {
     let target = format!("--target {}", os_config.platform.target);
     let target_dir = format!("--target-dir {}/target", ROOT_DIR);
     let mode = format!("--{}", os_config.platform.mode);
@@ -393,7 +393,7 @@ fn build_os(os_config: &OSConfig, ulib: &str, ax_feats: &Vec<String>, lib_feats:
         _ => "",
     };
     // add features
-    let features = [&ax_feats[..], &lib_feats[..]].concat().join(" ");
+    let features = [&rux_feats[..], &lib_feats[..]].concat().join(" ");
     let cmd = format!(
         "cargo build {} {} {} {} {} --features \"{}\"",
         target, target_dir, mode, os_ulib, verbose, features
@@ -413,8 +413,8 @@ fn build_os(os_config: &OSConfig, ulib: &str, ax_feats: &Vec<String>, lib_feats:
     }
 } 
 
-/// Builds the axlibc
-fn build_axlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) {
+/// Builds the ruxlibc
+fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) {
     if !Path::new(BUILD_DIR).exists() {
         fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
@@ -423,9 +423,9 @@ fn build_axlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) 
     }
     let ulib_tgt = TargetConfig {
         name: "libc".to_string(),
-        src: format!("{}/{}/ulib/axlibc/c", env!("HOME"), os_config.name),
+        src: format!("{}/{}/ulib/ruxlibc/c", env!("HOME"), os_config.name),
         src_excluded: Vec::new(),
-        include_dir: format!("{}/{}/ulib/axlibc/include", env!("HOME"), os_config.name),
+        include_dir: format!("{}/{}/ulib/ruxlibc/include", env!("HOME"), os_config.name),
         typ: "static".to_string(),
         cflags: String::from(""),
         archive: format!("{}-linux-musl-ar", os_config.platform.arch),
@@ -438,41 +438,41 @@ fn build_axlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) 
     tgt.build(gen_cc);
 }
 
-/// Builds the axmusl
-fn build_axmusl(build_config: &BuildConfig, os_config: &OSConfig) {
-    if !Path::new(AXMUSL_DIR).exists() {
-        // download axmusl
-        if !Path::new(ULIB_AXMUSL_SRC).exists() {
+/// Builds the ruxmusl
+fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
+    if !Path::new(RUXMUSL_DIR).exists() {
+        // download ruxmusl
+        if !Path::new(ULIB_RUXMUSL_SRC).exists() {
             log(LogLevel::Info, "Downloading musl-1.2.3 source code");
             Command::new("wget")
-                .args(&["https://musl.libc.org/releases/musl-1.2.3.tar.gz", "-P", ULIB_AXMUSL])
+                .args(&["https://musl.libc.org/releases/musl-1.2.3.tar.gz", "-P", ULIB_RUXMUSL])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("tar")
-                .args(&["-zxvf", &format!("{}/musl-1.2.3.tar.gz", ULIB_AXMUSL), "-C", ULIB_AXMUSL])
+                .args(&["-zxvf", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL), "-C", ULIB_RUXMUSL])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("rm")
-                .args(&["-f", &format!("{}/musl-1.2.3.tar.gz", ULIB_AXMUSL)])
+                .args(&["-f", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL)])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
         }
 
-        // create ruxos_bld/axmusl
-        fs::create_dir_all(AXMUSL_DIR).unwrap_or_else(|why| {
+        // create ruxos_bld/ruxmusl
+        fs::create_dir_all(RUXMUSL_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
             std::process::exit(1);
         });
 
-        // config axmusl to generate makefile
+        // config ruxmusl to generate makefile
         let cmd = format!(
             "{}/configure --prefix=./install --exec-prefix=./ --syslibdir=./install/lib --disable-shared ARCH={} CC={}",
-            ULIB_AXMUSL_SRC, os_config.platform.arch, build_config.compiler.read().unwrap());
+            ULIB_RUXMUSL_SRC, os_config.platform.arch, build_config.compiler.read().unwrap());
         log(LogLevel::Info, &format!("Command: {}", cmd));
         let configure_output = Command::new("sh")
             .arg("-c")
             .arg(cmd)
-            .current_dir(AXMUSL_DIR)
+            .current_dir(RUXMUSL_DIR)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
@@ -483,11 +483,11 @@ fn build_axmusl(build_config: &BuildConfig, os_config: &OSConfig) {
             std::process::exit(1);
         }
 
-        // compile and install axmusl
+        // compile and install ruxmusl
         log(LogLevel::Log, "Musl source code is installing...");
         let make_output = Command::new("make")
             .args(&["-j"])
-            .current_dir(AXMUSL_DIR)
+            .current_dir(RUXMUSL_DIR)
             .output()
             .expect("Failed to run make command");
         if !make_output.status.success() {
@@ -496,7 +496,7 @@ fn build_axmusl(build_config: &BuildConfig, os_config: &OSConfig) {
         }
         let make_install_output = Command::new("make")
             .args(&["install"])
-            .current_dir(AXMUSL_DIR)
+            .current_dir(RUXMUSL_DIR)
             .stderr(Stdio::inherit())
             .output()
             .expect("Failed to run make install command");
@@ -831,31 +831,6 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
     #[cfg(target_os = "windows")]
     let (build_config, os_config, targets) = utils::parse_config("./config_win32.toml", true);
 
-    // Configure environment variables
-    if os_config != OSConfig::default() && os_config.platform != PlatformConfig::default() {
-        std::env::set_var("AX_ARCH", &os_config.platform.arch);
-        std::env::set_var("AX_PLATFORM", &os_config.platform.name);
-        std::env::set_var("AX_SMP", &os_config.platform.smp);
-        std::env::set_var("AX_MODE", &os_config.platform.mode);
-        std::env::set_var("AX_LOG", &os_config.platform.log);
-        std::env::set_var("AX_TARGET", &os_config.platform.target);
-        if os_config.platform.qemu != QemuConfig::default() {
-            // ip and gw is for QEMU user netdev
-            std::env::set_var("AX_IP", &os_config.platform.qemu.ip);
-            std::env::set_var("AX_GW", &os_config.platform.qemu.gw);
-            // v9p option
-            if os_config.platform.qemu.v9p == "y" {
-                std::env::set_var("AX_9P_ADDR", "127.0.0.1:564");
-                std::env::set_var("AX_ANAME_9P", "./");
-                std::env::set_var("AX_PROTOCOL_9P", "9P2000.L");
-            }
-        }
-        // musl
-        if os_config.ulib == "axmusl" {
-            std::env::set_var("AX_MUSL", "y");
-        }
-    } 
-
     let mut num_exe = 0;
     let mut exe_target: Option<&TargetConfig> = None;
     if targets.is_empty() {
@@ -870,7 +845,6 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
             }
         }
     }
-
     if num_exe != 1 || exe_target.is_none() {
         log(LogLevel::Error, "Exactly one executable target must be specified");
         std::process::exit(1);

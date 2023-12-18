@@ -10,7 +10,7 @@
 pub mod builder;
 /// Contains code that handles various binary flags
 pub mod commands;
-/// Contains logger, config parser and qemu config
+/// Contains logger, config parser and environment config
 pub mod utils;
 /// Contains hashing related functions
 pub mod hasher;

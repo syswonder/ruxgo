@@ -5,7 +5,7 @@ packages = ["Ybeichen/redis, redis-7.0.12"]
 [os]
 name = "ruxos"
 services = ["alloc","paging","irq","fp_simd","multitask","fs","blkfs","net","pipe","epoll","poll","rtc","virtio-9p"]
-ulib = "axlibc"
+ulib = "ruxlibc"
 
 [os.platform]
 name = "x86_64-qemu-q35"
@@ -31,5 +31,5 @@ src = ""
 include_dir = ""
 type = "exe"
 cflags = "-static -no-pie"   # Local compilation needs
-ldflags = "rust-lld -flavor gnu"
+ldflags = "rust-lld -flavor gnu --allow-multiple-definition" # If ruxmusl is used, add --allow-multiple-definition
 deps = ["libredis_server"]
