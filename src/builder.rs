@@ -323,8 +323,10 @@ impl<'a> Target<'a> {
             cmd.push_str(" ");
             // link other dependant libraries
             for dep_target in dep_targets {
-                cmd.push_str(" -I");
-                cmd.push_str(&dep_target.target_config.include_dir);
+                dep_target.target_config.include_dir.iter().for_each(|include| {
+                    cmd.push_str(" -I");
+                    cmd.push_str(include);
+                });
                 cmd.push_str(" ");
                 let lib_name = dep_target.target_config.name.clone();
                 let lib_name = lib_name.replace("lib", "-l");
@@ -334,8 +336,10 @@ impl<'a> Target<'a> {
             // get libraries as packages
             for package in self.packages {
                 for target in &package.target_configs {
-                    cmd.push_str(" -I");
-                    cmd.push_str(&target.include_dir);
+                    target.include_dir.iter().for_each(|include| {
+                        cmd.push_str(" -I");
+                        cmd.push_str(include);
+                    });
                     cmd.push_str(" ");
                     let lib_name = target.name.clone();
                     let lib_name = lib_name.replace("lib", "-l");
@@ -448,8 +452,10 @@ impl<'a> Target<'a> {
                     if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
                         cmd.push_str(&dep_target.bin_path);
                     } else if dep_target.target_config.typ == "dll" {
-                        cmd.push_str(" -I");
-                        cmd.push_str(&dep_target.target_config.include_dir);
+                        dep_target.target_config.include_dir.iter().for_each(|include| {
+                            cmd.push_str(" -I");
+                            cmd.push_str(include);
+                        });
                         cmd.push_str(" ");
                         let lib_name = dep_target.target_config.name.clone();
                         let lib_name = lib_name.replace("lib", "-l");
@@ -514,17 +520,23 @@ impl<'a> Target<'a> {
         }
         cc.push_str(" -c -o ");
         cc.push_str(&src.obj_name);
-        cc.push_str(" -I");
-        cc.push_str(&self.target_config.include_dir);
+        self.target_config.include_dir.iter().for_each(|include| {
+            cc.push_str(" -I");
+            cc.push_str(include);
+        });
 
         for lib in &self.dependant_libs {
-            cc.push_str(" -I");
-            cc.push_str(&lib.target_config.include_dir);
+            lib.target_config.include_dir.iter().for_each(|include| {
+                cc.push_str(" -I");
+                cc.push_str(include);
+            });
         }
         for pack in self.packages {
             for tgtg in &pack.target_configs {
-                cc.push_str(" -I");
-                cc.push_str(&tgtg.include_dir);
+                tgtg.include_dir.iter().for_each(|include| {
+                    cc.push_str(" -I");
+                    cc.push_str(include);
+                });
             }
         }
 
@@ -673,13 +685,19 @@ impl<'a> Target<'a> {
                 return result;
             }
             for include_substring in include_substrings {
-                let dep_path = format!("{}/{}", &self.target_config.include_dir, &include_substring);
+                let mut dep_paths = Vec::new();
+                self.target_config.include_dir.iter().for_each(|include| {
+                    let dep_path = format!("{}/{}", include, &include_substring);
+                    dep_paths.push(dep_path.clone());
+                });
                 if self.dependant_includes.contains_key(&include_substring) {
                     continue;
                 }
-                result.push(dep_path.clone());                              // append current includes
+                // append current includes
+                result.extend(dep_paths.clone());
                 self.dependant_includes.insert(include_substring, result.clone()); 
-                result.append(&mut self.get_dependant_includes(&dep_path)); // append recursive includes
+                // append recursive includes
+                dep_paths.iter().for_each(|dep_path| result.append(&mut self.get_dependant_includes(dep_path)))
             }
             //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
         };
@@ -800,16 +818,19 @@ impl Src {
         cflags.push_str(&target_config.cflags);
         cmd.push_str(" ");
         cmd.push_str(&cflags);
-        cmd.push_str(" -I");
-        cmd.push_str(&target_config.include_dir);
+        target_config.include_dir.iter().for_each(|include| {
+            cmd.push_str(" -I");
+            cmd.push_str(include);
+        });
         cmd.push_str(" -o ");
         cmd.push_str(&self.obj_name);
 
         // consider some includes in other depandant_libs
         for dependant_lib in dependant_libs {
-            cmd.push_str(" -I");
-            cmd.push_str(dependant_lib.target_config.include_dir.as_str());
-            cmd.push_str(" ");
+            dependant_lib.target_config.include_dir.iter().for_each(|include| {
+                cmd.push_str(" -I");
+                cmd.push_str(include);
+            });
         }
 
         cmd.push_str(" -c ");

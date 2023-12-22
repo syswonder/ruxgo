@@ -250,7 +250,7 @@ pub struct TargetConfig {
     pub name: String,
     pub src: String,
     pub src_excluded: Vec<String>,
-    pub include_dir: String,
+    pub include_dir: Vec<String>,
     pub typ: String,
     pub cflags: String,
     pub archive: String,
@@ -406,11 +406,24 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             log(LogLevel::Error, "Target is not a table");
             std::process::exit(1);
         });
+        // include_dir is compatible with both string and vector types
+        let include_dir = if let Some(value) = target_tb.get("include_dir") {
+            match value {
+                toml::Value::String(_s) => vec![parse_cfg_string(target_tb, "include_dir", "./")],
+                toml::Value::Array(_arr) => parse_cfg_vector(target_tb, "include_dir"),
+                _ => {
+                    log(LogLevel::Error, "Invalid include_dir field");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            vec!["./".to_owned()]
+        };
         let target_config = TargetConfig {
             name: parse_cfg_string(target_tb, "name", ""),
             src: parse_cfg_string(target_tb, "src", ""),
             src_excluded: parse_cfg_vector(target_tb, "src_excluded"),
-            include_dir: parse_cfg_string(target_tb, "include_dir", "./"),
+            include_dir,
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
             archive: parse_cfg_string(target_tb, "archive", ""),
@@ -424,11 +437,11 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         }
         tgt.push(target_config);
     }
-
     if tgt.is_empty() {
         log(LogLevel::Error, "No targets found");
         std::process::exit(1);
     }
+
     // Check for duplicate target names
     for i in 0..tgt.len() - 1 {
         for j in i + 1..tgt.len() {
@@ -438,6 +451,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }
         }
     }
+
     // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
@@ -467,7 +481,7 @@ fn parse_platform(config: &Table) -> PlatformConfig {
     let empty_platform = Value::Table(toml::map::Map::default());
     let platform = config.get("platform").unwrap_or(&empty_platform);
     if let Some(platform_table) = platform.as_table() {
-        let name = parse_cfg_string(&platform_table, "name", "x86_64-qemu-q35");
+        let name = parse_cfg_string(platform_table, "name", "x86_64-qemu-q35");
         let arch = name.split("-").next().unwrap_or("x86_64").to_string();
         let cross_compile = format!("{}-linux-musl-", arch);
         let target = match &arch[..] {
@@ -479,15 +493,15 @@ fn parse_platform(config: &Table) -> PlatformConfig {
                 std::process::exit(1);
             }
         };
-        let smp = parse_cfg_string(&platform_table, "smp", "1");
-        let mode = parse_cfg_string(&platform_table, "mode", "release");
-        let log = parse_cfg_string(&platform_table, "log", "warn");
-        let v = parse_cfg_string(&platform_table, "v", "");
+        let smp = parse_cfg_string(platform_table, "smp", "1");
+        let mode = parse_cfg_string(platform_table, "mode", "release");
+        let log = parse_cfg_string(platform_table, "log", "warn");
+        let v = parse_cfg_string(platform_table, "v", "");
         // determine whether enable qemu
         let qemu: QemuConfig;
         if name.split("-").any(|s| s == "qemu") {
             // parse qemu (if empty, it is the default value)
-            qemu = parse_qemu(&arch, &platform_table);
+            qemu = parse_qemu(&arch, platform_table);
         } else {
             qemu = QemuConfig::default();
         }
@@ -503,16 +517,16 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
     let empty_qemu = Value::Table(toml::map::Map::default());
     let qemu = config.get("qemu").unwrap_or(&empty_qemu);
     if let Some(qemu_table) = qemu.as_table() {
-        let blk = parse_cfg_string(&qemu_table, "blk", "n");
-        let net = parse_cfg_string(&qemu_table, "net", "n");
-        let graphic = parse_cfg_string(&qemu_table, "graphic", "n");
+        let blk = parse_cfg_string(qemu_table, "blk", "n");
+        let net = parse_cfg_string(qemu_table, "net", "n");
+        let graphic = parse_cfg_string(qemu_table, "graphic", "n");
         let bus = match &arch[..] {
             "x86_64" => "pci".to_string(),
             _ => "mmio".to_string()
         };
-        let disk_img = parse_cfg_string(&qemu_table, "disk_img", "disk.img");
-        let v9p = parse_cfg_string(&qemu_table, "v9p", "n");
-        let v9p_path = parse_cfg_string(&qemu_table, "v9p_path", "./");
+        let disk_img = parse_cfg_string(qemu_table, "disk_img", "disk.img");
+        let v9p = parse_cfg_string(qemu_table, "v9p", "n");
+        let v9p_path = parse_cfg_string(qemu_table, "v9p_path", "./");
         let accel_pre = match Command::new("uname").arg("-r").output() {
             Ok(output) => {
                 let kernel_version = String::from_utf8_lossy(&output.stdout).to_lowercase();
@@ -527,13 +541,13 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
             "x86_64" => accel_pre.to_string(),
             _ => "n".to_string()
         };
-        let qemu_log = parse_cfg_string(&qemu_table, "qemu_log", "n");
-        let net_dump = parse_cfg_string(&qemu_table, "net_dump", "n");
-        let net_dev = parse_cfg_string(&qemu_table, "net_dev", "user");
-        let ip = parse_cfg_string(&qemu_table, "ip",  "10.0.2.15");
-        let gw = parse_cfg_string(&qemu_table, "gw", "10.0.2.2");
-        let args = parse_cfg_string(&qemu_table, "args", "");
-        let envs = parse_cfg_string(&qemu_table, "envs", "");
+        let qemu_log = parse_cfg_string(qemu_table, "qemu_log", "n");
+        let net_dump = parse_cfg_string(qemu_table, "net_dump", "n");
+        let net_dev = parse_cfg_string(qemu_table, "net_dev", "user");
+        let ip = parse_cfg_string(qemu_table, "ip",  "10.0.2.15");
+        let gw = parse_cfg_string(qemu_table, "gw", "10.0.2.2");
+        let args = parse_cfg_string(qemu_table, "args", "");
+        let envs = parse_cfg_string(qemu_table, "envs", "");
         QemuConfig {blk, net, graphic, bus, disk_img, v9p, v9p_path, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs}
     } else {
         log(LogLevel::Error, "Qemu is not a table");
@@ -541,6 +555,7 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
     }
 }
 
+/// Parse the configuration field of the string type
 fn parse_cfg_string(config: &Table, field: &str, default: &str) -> String {
     let default_string = Value::String(default.to_string());
     config.get(field)
@@ -553,6 +568,7 @@ fn parse_cfg_string(config: &Table, field: &str, default: &str) -> String {
         .to_string()
 }
 
+/// Parse the configuration field of the vector type
 fn parse_cfg_vector(config: &Table, field: &str) -> Vec<String> {
     let empty_vector = Value::Array(Vec::new());
     config.get(field)
@@ -761,13 +777,19 @@ impl Package {
                 }
                 // concatenate to generate a new src path and include path
                 tgt.src = format!("{}/{}", source_dir, tgt.src)
-                    .replace("\\", "/")
-                    .replace("/./", "/")
-                    .replace("//", "/");
-                tgt.include_dir = format!("{}/{}", source_dir, tgt.include_dir)
-                    .replace("\\", "/")
-                    .replace("/./", "/")
-                    .replace("//", "/");
+                            .replace("\\", "/")
+                            .replace("/./", "/")
+                            .replace("//", "/");
+                let tgt_include_dir = tgt.include_dir
+                    .iter()
+                    .map(|include| {
+                        format!("{}/{}", source_dir, include)
+                            .replace("\\", "/")
+                            .replace("/./", "/")
+                            .replace("//", "/")
+                    })
+                    .collect();
+                tgt.include_dir = tgt_include_dir;
                 target_configs.push(tgt);
             }
             packages.push(Package::new(name, repo, branch, build_config, target_configs, sub_packages));

@@ -1,8 +1,8 @@
 # Ruxgo
 
-Ruxgo is a Cargo-like build tool for building C and C++ applications that relies on Toml files to run. If running in a Linux environment, you need to configure `config_linux.toml`, if in windows, the `config_win32.toml` is required. 
+Ruxgo is a Cargo-like build tool for building C and C++ applications that relies solely on a toml file. It abandons the complex syntax and rule-dependent construction in the original MAKE tool, exposing the most original compilation process. If you hate using Makefile, might as well try Ruxgo to build applications, just take a few minutes!
 
-For a project to build, you only need to simply fill in the source file path, header file path, cflags, ldflags and other options. Ruxgo does the rest, so easy! It abandons the complex syntax and rule-dependent construction in the original MAKE tool, exposing the most original gcc compilation process, back to nature to truly understand the intention of each step. Now start to explore the compilation of various applications!
+For a project you want to build, you just need to figure out the source file path, header file path, cflags, ldflags, and then fill in the appropriate locations in the toml file. Ruxgo does the rest, so easy!
 
 🚧 Working In Progress. 
 
@@ -26,16 +26,6 @@ cargo install --path .
 * [x] Supported run by qemu
 * [x] Supported ruxlibc and ruxmusl
 * [ ] Create new project
-
-## Supported Apps
-
-The currently supported applications (c), see the **/apps** directory for specific toml configurations:
-
-* [x] helloworld
-* [x] memtest
-* [x] redis
-* [x] sqlite3
-* [ ] python3
 
 ## Usage
 
@@ -83,6 +73,26 @@ Options:
 
 You can also configure the log level with the environment variable `"RUXGO_LOG_LEVEL"`, the default log level is "Info".
 
+## Ruxgo-apps
+
+Currently, there are two ways to build an app in the **/apps** directory: locally and on ruxos.
+
+- If building locally, you'll need to download the apps source code and then use ruxgo to build and run it.
+
+- If you want to build on ruxos, you need to copy `config_linux.toml` into ruxos **apps/c/&lt;name&gt;** , then download the apps source code and run it with ruxgo.
+
+**Note:** Refer to the README.md in each app directory for details. The following applications are already supported:
+
+* [x] helloworld
+* [x] memtest
+* [x] redis
+* [x] sqlite3
+* [x] httpclient
+* [x] httpserver
+* [x] iperf
+* [x] nginx
+* [ ] python3
+
 ## TOML Module Description
 
 Toml file consists of one **[build]** module and multiple **[targets]** modules. If you want to run on ruxos, you can add the **[os]** module. Here is a description of each module:
@@ -97,7 +107,7 @@ The **[targets]** module is the core part of the Toml and is used to describe th
 - `name`: Specifies the target name, if it is of the "dll" type, must begin with "lib_".
 - `src`：Specifies the path to the target source code.
 - `src_excluded`：Optional. if you want to exclude some source files or directories, you can specify here.
-- `include_dir`：Specifies the path to the header file in the target source code.
+- `include_dir`：Specifies the path to the header file in the target source code, which allows string and vector types.
 - `type`：Specifies the type of the target, which can be of type "static", "dll", "object", or "exe". It should be noted that there can be only one "exe" target in a toml file, but there can be multiple targets of other types.
 - `cflags`：Specifies the compilation options of the target.
 - `archive`：Optional, specifies the target archive tool. You may need if the type is "static".

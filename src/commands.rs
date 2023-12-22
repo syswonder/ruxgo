@@ -236,10 +236,10 @@ pub fn build(
                 std::process::exit(1);
             });
 
-        let mut inc_dirs: Vec<String> = targets.iter().map(|t| t.include_dir.clone()).collect();
+        let mut inc_dirs: Vec<String> = targets.iter().flat_map(|t| t.include_dir.clone()).collect();
         for package in packages {
             for target in &package.target_configs {
-                inc_dirs.push(target.include_dir.clone());
+                inc_dirs.extend(target.include_dir.clone());
             }
         }
         let compiler_path: String = build_config.compiler.read().unwrap().clone();
@@ -425,7 +425,7 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
         name: "libc".to_string(),
         src: format!("{}/{}/ulib/ruxlibc/c", env!("HOME"), os_config.name),
         src_excluded: Vec::new(),
-        include_dir: format!("{}/{}/ulib/ruxlibc/include", env!("HOME"), os_config.name),
+        include_dir: vec![format!("{}/{}/ulib/ruxlibc/include", env!("HOME"), os_config.name)],
         typ: "static".to_string(),
         cflags: String::from(""),
         archive: format!("{}-linux-musl-ar", os_config.platform.arch),

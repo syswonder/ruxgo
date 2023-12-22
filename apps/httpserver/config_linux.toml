@@ -1,0 +1,25 @@
+[build]
+compiler = "gcc"
+
+[os]
+name = "ruxos"
+services = ["alloc","paging","net"]
+ulib = "ruxlibc"
+
+[os.platform]
+name = "x86_64-qemu-q35"
+smp = "2"
+mode = "release"
+log = "info"
+
+[os.platform.qemu]
+graphic = "n"
+net = "y"
+
+[[targets]]
+name = "httpserver"
+src = "./"
+include_dir = "./"
+type = "exe"
+cflags = ""
+ldflags = "rust-lld -flavor gnu"
