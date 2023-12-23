@@ -21,7 +21,7 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 // ruxlibc info
-static RUXLIBC_INC: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxlibc/include");
+static RUXLIBC_INC: &str = "../../../ulib/ruxlibc/include";
 static RUXLIBC_C_LIB: &str = "ruxos_bld/bin/libc.a";
 static RUXLIBC_RUST_LIB: &str = "libruxlibc.a";
 // ruxmusl info
@@ -454,10 +454,7 @@ impl<'a> Target<'a> {
             let mut ldflags = String::new();
             let mut os_ldflags = String::new();
             os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
-            let ld_script = format!(
-                "{}/{}/modules/ruxhal/linker_{}.lds",
-                 env!("HOME"), self.os_config.name, self.os_config.platform.name
-            );
+            let ld_script = format!("../../../modules/ruxhal/linker_{}.lds", self.os_config.platform.name);
             os_ldflags.push_str(&format!(" -T{}", &ld_script));
             if self.os_config.platform.arch == "x86_64".to_string() {
                 os_ldflags.push_str(" --no-relax");
@@ -662,7 +659,7 @@ impl<'a> Target<'a> {
             if entry.path().is_dir() {  
                 let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
                 if skip_dir {
-                    log(LogLevel::Info, &format!("Skipping directory: {}", path));
+                    log(LogLevel::Debug, &format!("Skipping directory: {}", path));
                     src_exclude.retain(|&excluded| !path.contains(excluded));
                     continue;
                 }
@@ -670,7 +667,7 @@ impl<'a> Target<'a> {
             } else {
                 let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
                 if skip_file {
-                    log(LogLevel::Info, &format!("Skipping file: {}", path));
+                    log(LogLevel::Debug, &format!("Skipping file: {}", path));
                     src_exclude.retain(|&excluded| !path.ends_with(excluded));
                     continue;
                 }
@@ -810,11 +807,13 @@ impl Src {
     ) -> Option<String> {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler.read().unwrap());
+        // If os exist
         let mut os_cflags = String::new();
-
-        // Add os_cflags
         if !os_config.name.is_empty() {
+            os_cflags.push_str("-nostdinc -fno-builtin -ffreestanding -Wall");
             if os_config.ulib == "ruxlibc" {
+                os_cflags.push_str(" -I");
+                os_cflags.push_str(RUXLIBC_INC);
                 let (_, lib_feats) = cfg_feat(os_config);
                 // generate the preprocessing macro definition
                 for lib_feat in lib_feats {
@@ -822,15 +821,9 @@ impl Src {
                     os_cflags.push_str(&format!(" -DRUX_CONFIG_{}", &processed_lib_feat));
                 }
                 os_cflags.push_str(&format!(" -DRUX_CONFIG_{}", os_config.platform.log.to_uppercase()));
-                os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
-                os_cflags.push_str(" -I");
-                os_cflags.push_str(RUXLIBC_INC);
-                os_cflags.push_str(" ");
             } else if os_config.ulib == "ruxmusl" {
-                os_cflags.push_str(" -nostdinc -fno-builtin -ffreestanding -Wall");
                 os_cflags.push_str(" -I");
                 os_cflags.push_str(RUXMUSL_INC);
-                os_cflags.push_str(" ");
             }
             if os_config.platform.mode == "release" {
                 os_cflags.push_str(" -O3");
@@ -849,8 +842,10 @@ impl Src {
 
         // Add cflags
         let mut cflags = String::new();
-        cflags.push_str(&os_cflags);
-        cflags.push_str(" ");
+        if !os_cflags.is_empty() {
+            cflags.push_str(&os_cflags);
+            cflags.push_str(" ");
+        }
         cflags.push_str(&target_config.cflags);
         cmd.push_str(" ");
         cmd.push_str(&cflags);

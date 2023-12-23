@@ -17,8 +17,8 @@ static TARGET_DIR: &str = "ruxos_bld/target";
 static PACKAGES_DIR: &str = "ruxos_bld/packages";
 // ruxmusl info
 static RUXMUSL_DIR: &str = "ruxos_bld/ruxmusl";
-static ULIB_RUXMUSL: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxmusl");
-static ULIB_RUXMUSL_SRC: &str = concat!(env!("HOME"), "/ruxos/ulib/ruxmusl/musl-1.2.3");
+static ULIB_RUXMUSL: &str = "../../../ulib/ruxmusl";
+static ULIB_RUXMUSL_SRC: &str = "../../../ulib/ruxmusl/musl-1.2.3";
 
 /// Cleans the local targets
 /// # Arguments
@@ -423,9 +423,9 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
     }
     let ulib_tgt = TargetConfig {
         name: "libc".to_string(),
-        src: format!("{}/{}/ulib/ruxlibc/c", env!("HOME"), os_config.name),
+        src: format!("../../../ulib/ruxlibc/c"),
         src_excluded: Vec::new(),
-        include_dir: vec![format!("{}/{}/ulib/ruxlibc/include", env!("HOME"), os_config.name)],
+        include_dir: Vec::new(),    // this is empty to avoid repetition at src build
         typ: "static".to_string(),
         cflags: String::from(""),
         archive: format!("{}-linux-musl-ar", os_config.platform.arch),
