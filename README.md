@@ -2,7 +2,7 @@
 
 Ruxgo is a Cargo-like build tool for building C and C++ applications that relies solely on a toml file. It abandons the complex syntax and rule-dependent construction in the original MAKE tool, exposing the most original compilation process. If you hate using Makefile, might as well try Ruxgo to build applications, just take a few minutes!
 
-For a project you want to build, you just need to figure out the source file path, header file path, cflags, ldflags, and then fill in the appropriate locations in the toml file. Ruxgo does the rest, so easy!
+For a project you want to build, you just need to figure out the source file path, header file path, cflags and ldflags, then fill them into the appropriate places in the toml file. Ruxgo does the rest, so easy!
 
 🚧 Working In Progress. 
 
@@ -79,7 +79,7 @@ Currently, there are two ways to build an app in the **/apps** directory: locall
 
 - If building locally, you'll need to download the apps source code and then use ruxgo to build and run it.
 
-- If you want to build on ruxos, you need to copy `config_linux.toml` into ruxos **apps/c/&lt;name&gt;** , then download the apps source code and run it with ruxgo.
+- If you want to build on ruxos, you need to copy `config_linux.toml` into ruxos **apps/c/&lt;name&gt;** , then download the apps source code and build it with ruxgo.
 
 **Note:** Refer to the README.md in each app directory for details. The following applications are already supported:
 
@@ -110,7 +110,8 @@ The **[targets]** module is the core part of the Toml and is used to describe th
 - `include_dir`：Specifies the path to the header file in the target source code, which allows string and vector types.
 - `type`：Specifies the type of the target, which can be of type "static", "dll", "object", or "exe". It should be noted that there can be only one "exe" target in a toml file, but there can be multiple targets of other types.
 - `cflags`：Specifies the compilation options of the target.
-- `archive`：Optional, specifies the target archive tool. You may need if the type is "static".
+- `archive`：Optional. If the targets type is static, you can specify an archive tool to create the static library.
+- `linker`: Optional. Specifies the linking tool is used to link object files, static libraries, and dynamic libraries. If the value is missing, it is specified according to the `compiler`.
 - `ldflags`：Specifies the link options of the target.
 - `deps`：Specifies other targets to depend on.
 

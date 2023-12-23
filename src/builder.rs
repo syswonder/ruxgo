@@ -309,166 +309,13 @@ impl<'a> Target<'a> {
         let mut cmd = String::new();
         let mut cmd_bin = String::new();
         if self.target_config.typ == "dll" {
-            cmd.push_str(&self.build_config.compiler.read().unwrap());
-            cmd.push_str(" -shared");
-            cmd.push_str(" ");
-            cmd.push_str(" -o ");
-            cmd.push_str(&self.bin_path);
-            for obj in objs {
-                cmd.push_str(" ");
-                cmd.push_str(obj);
-            }
-            cmd.push_str(" ");
-            cmd.push_str(&self.target_config.cflags);
-            cmd.push_str(" ");
-            // link other dependant libraries
-            for dep_target in dep_targets {
-                dep_target.target_config.include_dir.iter().for_each(|include| {
-                    cmd.push_str(" -I");
-                    cmd.push_str(include);
-                });
-                cmd.push_str(" ");
-                let lib_name = dep_target.target_config.name.clone();
-                let lib_name = lib_name.replace("lib", "-l");
-                cmd.push_str(&lib_name);
-                cmd.push_str(" ");
-            }
-            // get libraries as packages
-            for package in self.packages {
-                for target in &package.target_configs {
-                    target.include_dir.iter().for_each(|include| {
-                        cmd.push_str(" -I");
-                        cmd.push_str(include);
-                    });
-                    cmd.push_str(" ");
-                    let lib_name = target.name.clone();
-                    let lib_name = lib_name.replace("lib", "-l");
-                    cmd.push_str(&lib_name);
-                    cmd.push_str(" ");
-                }
-            }
-            // added -L library search path
-            if self.packages.len() + self.dependant_libs.len() > 0 {
-                cmd.push_str(" -L");
-                cmd.push_str(BUILD_DIR);
-                cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
-                cmd.push_str(" ");
-            }
-            cmd.push_str(" ");
-            cmd.push_str(&self.target_config.ldflags);
+            cmd = self.link_dll(objs, dep_targets);
         } else if self.target_config.typ == "static" {
-            cmd.push_str(&self.target_config.archive);
-            cmd.push_str(" ");
-            cmd.push_str(&self.target_config.ldflags);
-            cmd.push_str(" ");
-            cmd.push_str(&self.bin_path);
-            for obj in objs {
-                cmd.push_str(" ");
-                cmd.push_str(obj);
-            }
+            cmd = self.link_static(objs);
         } else if self.target_config.typ == "object" {
-            cmd.push_str(&self.build_config.compiler.read().unwrap());
-            cmd.push_str(" ");
-            cmd.push_str(&self.target_config.ldflags);
-            cmd.push_str(" -o ");
-            cmd.push_str(&self.bin_path);
-            for obj in objs {
-                cmd.push_str(" ");
-                cmd.push_str(obj);
-            }
-            // link other dependant libraries
-            for dep_target in dep_targets {
-                cmd.push_str(" ");
-                cmd.push_str(&dep_target.bin_path);
-            }
+            cmd = self.link_object(objs, dep_targets);
         } else if self.target_config.typ == "exe" {
-            if !self.os_config.name.is_empty() {
-                // add os_ldflags
-                let mut os_ldflags = String::new();
-                os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
-                let ld_script = format!(
-                    "{}/{}/modules/ruxhal/linker_{}.lds",
-                     env!("HOME"), self.os_config.name, self.os_config.platform.name
-                );
-                os_ldflags.push_str(&format!(" -T{}", &ld_script));
-                if self.os_config.platform.arch == "x86_64".to_string() {
-                    os_ldflags.push_str(" --no-relax");
-                }
-                let mut ldflags = String::new();
-                ldflags.push_str(&self.target_config.ldflags);
-                ldflags.push_str(" ");
-                ldflags.push_str(&os_ldflags);
-                cmd.push_str(&ldflags);
-
-                // link ulib and os
-                if self.os_config.ulib == "ruxlibc" {
-                    cmd.push_str(" ");
-                    cmd.push_str(RUXLIBC_C_LIB);
-                    cmd.push_str(" ");
-                    cmd.push_str(&format!("{}/target/{}/{}/{}",
-                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
-                } else if self.os_config.ulib == "ruxmusl" {
-                    cmd.push_str(" ");
-                    cmd.push_str(RUXMUSL_C_LIB);
-                    cmd.push_str(" ");
-                    cmd.push_str(&format!("{}/target/{}/{}/{}",
-                                ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));
-                }
-
-                // link other obj
-                for obj in objs {
-                    cmd.push_str(" ");
-                    cmd.push_str(obj);
-                }
-
-                // link other dependant libraries
-                for dep_target in dep_targets {
-                    cmd.push_str(" ");
-                    cmd.push_str(&dep_target.bin_path);
-                }
-                cmd.push_str(" -o ");
-                cmd.push_str(&self.elf_path);
-
-                // generate a bin file
-                cmd_bin.push_str(&format!("rust-objcopy --binary-architecture={}", &self.os_config.platform.arch));
-                cmd_bin.push_str(" ");
-                cmd_bin.push_str(&self.elf_path);
-                cmd_bin.push_str(" --strip-all -O binary ");
-                cmd_bin.push_str(&self.bin_path);
-            } else {
-                cmd.push_str(&self.build_config.compiler.read().unwrap());
-                cmd.push_str(" -o ");
-                cmd.push_str(&self.bin_path);
-                for obj in objs {
-                    cmd.push_str(" ");
-                    cmd.push_str(obj);
-                }
-                cmd.push_str(" ");
-                cmd.push_str(&self.target_config.ldflags);
-                cmd.push_str(" ");
-
-                // link other dependant libraries
-                for dep_target in dep_targets {
-                    if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
-                        cmd.push_str(&dep_target.bin_path);
-                    } else if dep_target.target_config.typ == "dll" {
-                        dep_target.target_config.include_dir.iter().for_each(|include| {
-                            cmd.push_str(" -I");
-                            cmd.push_str(include);
-                        });
-                        cmd.push_str(" ");
-                        let lib_name = dep_target.target_config.name.clone();
-                        let lib_name = lib_name.replace("lib", "-l");
-                        cmd.push_str(&lib_name);
-                        cmd.push_str(" ");
-                        // added -L library search path
-                        cmd.push_str(" -L");
-                        cmd.push_str(BUILD_DIR);
-                        cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
-                        cmd.push_str(" ");
-                    }
-                }
-            }
+            (cmd, cmd_bin) = self.link_exe(objs, dep_targets);
         }
 
         log(LogLevel::Info, &format!("Linking target: {}", &self.target_config.name));
@@ -503,6 +350,193 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
              }
         }
+    }
+
+    /// Links the dll targets
+    pub fn link_dll(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
+        let mut cmd = String::new();
+        if !self.target_config.linker.is_empty() {
+            cmd.push_str(&self.target_config.linker);
+        } else {
+            cmd.push_str(&self.build_config.compiler.read().unwrap());
+        }
+        cmd.push_str(" -shared");
+        cmd.push_str(" -o ");
+        cmd.push_str(&self.bin_path);
+        for obj in objs {
+            cmd.push_str(" ");
+            cmd.push_str(obj);
+        };
+        cmd.push_str(" ");
+
+        // link other dependant libraries
+        for dep_target in dep_targets {
+            dep_target.target_config.include_dir.iter().for_each(|include| {
+                cmd.push_str(" -I");
+                cmd.push_str(include);
+            });
+            cmd.push_str(" ");
+            let lib_name = dep_target.target_config.name.clone();
+            let lib_name = lib_name.replace("lib", "-l");
+            cmd.push_str(&lib_name);
+            cmd.push_str(" ");
+        }
+
+        // add -L library search path
+        if self.dependant_libs.len() > 0 {
+            cmd.push_str(" -L");
+            cmd.push_str(BUILD_DIR);
+            cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+            cmd.push_str(" ");
+        }
+
+        // add ldflags
+        cmd.push_str(&self.target_config.ldflags);
+
+        cmd
+    }
+
+    /// Links the static targets
+    pub fn link_static(&self, objs: Vec<&String>) -> String {
+        let mut cmd = String::new();
+        cmd.push_str(&self.target_config.archive);
+        cmd.push_str(" ");
+        cmd.push_str(&self.target_config.ldflags);
+        cmd.push_str(" ");
+        cmd.push_str(&self.bin_path);
+        for obj in objs {
+            cmd.push_str(" ");
+            cmd.push_str(obj);
+        }
+
+        cmd
+    }
+
+    /// Links the object targets
+    pub fn link_object(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
+        let mut cmd = String::new();
+        if !self.target_config.linker.is_empty() {
+            cmd.push_str(&self.target_config.linker);
+        } else {
+            cmd.push_str(&self.build_config.compiler.read().unwrap());
+        }
+        cmd.push_str(" ");
+        cmd.push_str(&self.target_config.ldflags);
+        cmd.push_str(" -o ");
+        cmd.push_str(&self.bin_path);
+        for obj in objs {
+            cmd.push_str(" ");
+            cmd.push_str(obj);
+        }
+        // link other dependant libraries
+        for dep_target in dep_targets {
+            cmd.push_str(" ");
+            cmd.push_str(&dep_target.bin_path);
+        }
+
+        cmd
+    }
+
+    /// Links the executable targets
+    pub fn link_exe(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> (String, String) {
+        let mut cmd = String::new();
+        let mut cmd_bin = String::new();
+        if !self.target_config.linker.is_empty() {
+            cmd.push_str(&self.target_config.linker);
+        } else {
+            cmd.push_str(&self.build_config.compiler.read().unwrap());
+        }
+        cmd.push_str(" ");
+
+        // consider os config
+        if !self.os_config.name.is_empty() {
+            // add os_ldflags and target_config.ldflags
+            let mut ldflags = String::new();
+            let mut os_ldflags = String::new();
+            os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
+            let ld_script = format!(
+                "{}/{}/modules/ruxhal/linker_{}.lds",
+                 env!("HOME"), self.os_config.name, self.os_config.platform.name
+            );
+            os_ldflags.push_str(&format!(" -T{}", &ld_script));
+            if self.os_config.platform.arch == "x86_64".to_string() {
+                os_ldflags.push_str(" --no-relax");
+            }
+            ldflags.push_str(&os_ldflags);
+            ldflags.push_str(" ");
+            ldflags.push_str(&self.target_config.ldflags);
+            cmd.push_str(&ldflags);
+
+            // link ulib and os
+            if self.os_config.ulib == "ruxlibc" {
+                cmd.push_str(" ");
+                cmd.push_str(RUXLIBC_C_LIB);
+                cmd.push_str(" ");
+                cmd.push_str(&format!("{}/target/{}/{}/{}",
+                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
+            } else if self.os_config.ulib == "ruxmusl" {
+                cmd.push_str(" ");
+                cmd.push_str(RUXMUSL_C_LIB);
+                cmd.push_str(" ");
+                cmd.push_str(&format!("{}/target/{}/{}/{}",
+                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));
+            }
+
+            // link other obj
+            for obj in objs {
+                cmd.push_str(" ");
+                cmd.push_str(obj);
+            }
+
+            // link other dependant libraries
+            for dep_target in dep_targets {
+                cmd.push_str(" ");
+                cmd.push_str(&dep_target.bin_path);
+            }
+            cmd.push_str(" -o ");
+            cmd.push_str(&self.elf_path);
+
+            // generate a bin file
+            cmd_bin.push_str(&format!("rust-objcopy --binary-architecture={}", &self.os_config.platform.arch));
+            cmd_bin.push_str(" ");
+            cmd_bin.push_str(&self.elf_path);
+            cmd_bin.push_str(" --strip-all -O binary ");
+            cmd_bin.push_str(&self.bin_path);
+        } else {
+            cmd.push_str(" -o ");
+            cmd.push_str(&self.bin_path);
+            for obj in objs {
+                cmd.push_str(" ");
+                cmd.push_str(obj);
+            }
+            cmd.push_str(" ");
+            cmd.push_str(&self.target_config.ldflags);
+            cmd.push_str(" ");
+
+            // link other dependant libraries
+            for dep_target in dep_targets {
+                if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
+                    cmd.push_str(&dep_target.bin_path);
+                } else if dep_target.target_config.typ == "dll" {
+                    dep_target.target_config.include_dir.iter().for_each(|include| {
+                        cmd.push_str(" -I");
+                        cmd.push_str(include);
+                    });
+                    cmd.push_str(" ");
+                    let lib_name = dep_target.target_config.name.clone();
+                    let lib_name = lib_name.replace("lib", "-l");
+                    cmd.push_str(&lib_name);
+                    cmd.push_str(" ");
+                    // added -L library search path
+                    cmd.push_str(" -L");
+                    cmd.push_str(BUILD_DIR);
+                    cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
+                    cmd.push_str(" ");
+                }
+            }
+        }
+
+        (cmd, cmd_bin)
     }
 
     /// Generates the compile_commands.json file for a src
@@ -628,7 +662,7 @@ impl<'a> Target<'a> {
             if entry.path().is_dir() {  
                 let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
                 if skip_dir {
-                    log(LogLevel::Log, &format!("Skipping directory: {}", path));
+                    log(LogLevel::Info, &format!("Skipping directory: {}", path));
                     src_exclude.retain(|&excluded| !path.contains(excluded));
                     continue;
                 }
@@ -636,7 +670,7 @@ impl<'a> Target<'a> {
             } else {
                 let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
                 if skip_file {
-                    log(LogLevel::Log, &format!("Skipping file: {}", path));
+                    log(LogLevel::Info, &format!("Skipping file: {}", path));
                     src_exclude.retain(|&excluded| !path.ends_with(excluded));
                     continue;
                 }
@@ -677,7 +711,7 @@ impl<'a> Target<'a> {
         obj_name
     }
 
-    /// Returns a vector of .h or .hpp files the given C/C++ depends on (local)
+    /// Returns a vector of .h or .hpp files the given C/C++ depends on
     fn get_dependant_includes(&mut self, path: &str) -> Vec<String> {
         let mut result = Vec::new();
         if let Some(include_substrings) = self.get_include_substrings(path) {
@@ -777,6 +811,7 @@ impl Src {
         let mut cmd = String::new();
         cmd.push_str(&build_config.compiler.read().unwrap());
         let mut os_cflags = String::new();
+
         // Add os_cflags
         if !os_config.name.is_empty() {
             if os_config.ulib == "ruxlibc" {
@@ -812,6 +847,7 @@ impl Src {
             }
         }
 
+        // Add cflags
         let mut cflags = String::new();
         cflags.push_str(&os_cflags);
         cflags.push_str(" ");

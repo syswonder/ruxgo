@@ -1,5 +1,6 @@
-//! This file contains various logging and toml parsing functions
+//! This file contains various logging, toml parsing functions and environment configuration
 //! used by the ruxgo library
+
 use std::sync::{Arc, RwLock};
 use std::{io::Read, path::Path};
 use std::fs::{self, File};
@@ -8,10 +9,6 @@ use colored::Colorize;
 use std::default::Default;
 use crate::builder::Target;
 use std::process::{Command, Stdio};
-
-#[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "ruxos_bld/obj_win32";
-#[cfg(target_os = "linux")]
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -147,17 +144,21 @@ impl QemuConfig {
         match platform_config.arch.as_str() {
             "x86_64" => {
                 qemu_args.extend(
-                    vec!["-machine", "q35", "-kernel", &trgt.elf_path].iter().map(|&arg| arg.to_string()));
+                    vec!["-machine", "q35", "-kernel", &trgt.elf_path]
+                    .iter().map(|&arg| arg.to_string())
+                );
             }
             "risc64" => {
                 qemu_args.extend(
                     vec!["-machine", "virt", "-bios", "default", "-kernel", &trgt.bin_path]
-                    .iter().map(|&arg| arg.to_string()));
+                    .iter().map(|&arg| arg.to_string())
+                );
             }
             "aarch64" => {
                 qemu_args.extend(
                     vec!["-cpu", "cortex-a72", "-machine", "virt", "-kernel", &trgt.bin_path]
-                    .iter().map(|&arg| arg.to_string()));
+                    .iter().map(|&arg| arg.to_string())
+                );
             }
             _ => {
                 log(LogLevel::Error, "Unsupported architecture");
@@ -254,6 +255,7 @@ pub struct TargetConfig {
     pub typ: String,
     pub cflags: String,
     pub archive: String,
+    pub linker: String,
     pub ldflags: String,
     pub deps: Vec<String>,
 }
@@ -427,6 +429,7 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
             archive: parse_cfg_string(target_tb, "archive", ""),
+            linker: parse_cfg_string(target_tb, "linker", ""),
             ldflags: parse_cfg_string(target_tb, "ldflags", ""),
             deps: parse_cfg_vector(target_tb, "deps"),
         };

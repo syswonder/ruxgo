@@ -31,5 +31,6 @@ src = ""
 include_dir = ""
 type = "exe"
 cflags = "-static -no-pie"   # Local compilation needs
-ldflags = "rust-lld -flavor gnu --allow-multiple-definition" # If ruxmusl is used, add --allow-multiple-definition
+linker = "rust-lld -flavor gnu"
+ldflags = "--allow-multiple-definition" # If ruxmusl is used, add --allow-multiple-definition
 deps = ["libredis_server"]

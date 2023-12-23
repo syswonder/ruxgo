@@ -69,5 +69,6 @@ src = ""
 include_dir = ""
 type = "exe"
 cflags = "-static -no-pie"
-ldflags = "rust-lld -flavor gnu"
+linker = "rust-lld -flavor gnu"
+ldflags = ""
 deps = ["libredis_server"]

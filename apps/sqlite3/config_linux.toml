@@ -34,5 +34,6 @@ src_excluded = ["sqlite-amalgamation-3410100"]
 include_dir = "./"
 type = "exe"
 cflags = ""
-ldflags = "rust-lld -flavor gnu"
+linker = "rust-lld -flavor gnu"
+ldflags = ""
 deps = ["libsqlite3"]

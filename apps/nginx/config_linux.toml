@@ -33,21 +33,18 @@ include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libevent"
 src = "nginx-1.24.0/src/event"
-src_excluded = [
-            "/modules","ngx_event_acceptex.c","ngx_event_connectex.c",
-            "ngx_event_openssl_stapling.c",
-            "ngx_event_openssl.c"
-            ]
+src_excluded = ["/modules","ngx_event_acceptex.c","ngx_event_connectex.c",
+            "ngx_event_openssl_stapling.c","ngx_event_openssl.c"]
 include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libevent_modules"
@@ -62,7 +59,7 @@ include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libos_unix"
@@ -78,20 +75,18 @@ include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libhttp"
 src = "nginx-1.24.0/src/http"
-src_excluded = [
-            "/modules","/v2","ngx_http_file_cache.c",
-            "ngx_http_huff_decode.c","ngx_http_huff_encode.c",
-            ]
+src_excluded = ["/modules","/v2","ngx_http_file_cache.c",
+            "ngx_http_huff_decode.c","ngx_http_huff_encode.c"]
 include_dir = ["nginx-1.24.0/src/http","nginx-1.24.0/src/http/modules","nginx-1.24.0/src/core",
                 "nginx-1.24.0/src/event","nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix","./objs"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libhttp_modules"
@@ -109,11 +104,12 @@ src_excluded = [
             "ngx_http_slice_filter_module.c","ngx_http_ssl_module.c",
             "ngx_http_stub_status_module.c","ngx_http_xslt_filter_module.c"
             ]
-include_dir = ["nginx-1.24.0/src/http","nginx-1.24.0/src/http/modules","nginx-1.24.0/src/core",
-                "nginx-1.24.0/src/event","nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix","./objs"]
+include_dir = ["nginx-1.24.0/src/http","nginx-1.24.0/src/http/modules",
+                "nginx-1.24.0/src/core","nginx-1.24.0/src/event",
+                "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix","./objs"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
+ldflags = "-r"
 
 [[targets]]
 name = "libobjs"
@@ -122,9 +118,7 @@ include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
 cflags = "-Wno-format"
-ldflags = "-rdynamic -r"
-deps = ["libcore","libevent","libevent_modules","libos_unix",
-        "libhttp","libhttp_modules"]
+ldflags = "-r"
 
 ### linker
 [[targets]]
@@ -133,5 +127,7 @@ src = ""
 include_dir = ""
 type = "exe"
 cflags = "-Wno-format"
-ldflags = "rust-lld -flavor gnu"
-deps = ["libobjs"]
+linker = "rust-lld -flavor gnu"
+ldflags = ""
+deps = ["libobjs","libcore","libevent","libevent_modules",
+        "libos_unix","libhttp","libhttp_modules"]

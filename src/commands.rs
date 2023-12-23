@@ -429,6 +429,7 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
         typ: "static".to_string(),
         cflags: String::from(""),
         archive: format!("{}-linux-musl-ar", os_config.platform.arch),
+        linker: String::from(""),
         ldflags: String::from("rcs"),
         deps: Vec::new(),
     };
