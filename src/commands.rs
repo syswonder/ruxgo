@@ -450,7 +450,7 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("tar")
-                .args(&["-zxvf", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL), "-C", ULIB_RUXMUSL])
+                .args(&["-zxf", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL), "-C", ULIB_RUXMUSL])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("rm")
@@ -466,16 +466,17 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
         });
 
         // config ruxmusl to generate makefile
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
+        let ruxmusl_abs_path = current_dir.join(ULIB_RUXMUSL_SRC);
+        let ruxmusl_abs_path_str = ruxmusl_abs_path.to_str().expect("Failed to convert path to string");
         let cmd = format!(
             "{}/configure --prefix=./install --exec-prefix=./ --syslibdir=./install/lib --disable-shared ARCH={} CC={}",
-            ULIB_RUXMUSL_SRC, os_config.platform.arch, build_config.compiler.read().unwrap());
+            ruxmusl_abs_path_str, os_config.platform.arch, build_config.compiler.read().unwrap());
         log(LogLevel::Info, &format!("Command: {}", cmd));
         let configure_output = Command::new("sh")
             .arg("-c")
             .arg(cmd)
             .current_dir(RUXMUSL_DIR)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
             .expect("Failed to execute configure command");
