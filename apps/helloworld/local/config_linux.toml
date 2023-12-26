@@ -1,0 +1,10 @@
+[build]
+compiler = "gcc"
+
+[[targets]]
+name = "helloworld"
+src = "./"
+include_dir = "./"
+type = "exe"
+cflags = ""
+ldflags = ""

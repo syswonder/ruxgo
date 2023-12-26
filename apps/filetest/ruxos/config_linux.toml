@@ -3,7 +3,7 @@ compiler = "gcc"
 
 [os]
 name = "ruxos"
-services = ["alloc","paging"]
+services = ["alloc","paging","fs","blkfs"]
 ulib = "ruxlibc"
 
 [os.platform]
@@ -13,10 +13,11 @@ mode = "release"
 log = "warn"
 
 [os.platform.qemu]
-graphic = "y"
+graphic = "n"
+blk = "y"
 
 [[targets]]
-name = "memtest"
+name = "filetest"
 src = "./"
 include_dir = "./"
 type = "exe"

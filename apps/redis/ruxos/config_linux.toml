@@ -16,13 +16,9 @@ log = "error"
 blk = "y"
 net = "y"
 graphic = "n"
-disk_img = "disk.img"
 args = "./redis-server,/v9fs/redis.conf"
 v9p = "y" 
 v9p_path = "./"
-net_dev = "user"
-IP = "10.0.2.15"
-GW = "10.0.2.2"
 
 [[targets]]
 name = "libhiredis"
@@ -64,11 +60,11 @@ ldflags = "-g -ggdb -rdynamic -r"
 deps = ["libhiredis","liblua","libhdrhistogram"]
 
 [[targets]]
-name = "ruxos_redis"
+name = "ruxos_redis_server"
 src = ""
 include_dir = ""
 type = "exe"
-cflags = "-static -no-pie"
+cflags = ""
 linker = "rust-lld -flavor gnu"
 ldflags = ""
 deps = ["libredis_server"]

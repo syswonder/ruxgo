@@ -2,7 +2,7 @@
 compiler = "gcc"
 
 [[targets]]
-name = "ruxos_iperf"
+name = "local_iperf"
 src = "./src"
 src_excluded = ["t_timer.c","t_units.c","t_uuid.c"]
 include_dir = "./src"

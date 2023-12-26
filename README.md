@@ -8,12 +8,17 @@ For a project you want to build, you just need to figure out the source file pat
 
 ## Installation
 
-The tool currently only supports local installation.
-```console
-git clone https://github.com/Ybeichen/ruxgo.git && cd ruxgo
-cargo build
-cargo install --path .
+To build the `ruxgo` executable from source, you will first need to install Rust and Cargo. Follow the instructions on the [Rust installation page](https://www.rust-lang.org/tools/install). Ruxgo currently requires at least Rust version 1.70.
+
+Once you have installed Rust, the following command can be used to build and install Ruxgo:
+
+```sh
+cargo install --git https://github.com/Ybeichen/ruxgo.git ruxgo
 ```
+
+This will automatically download `ruxgo`, build it, and install it in Cargo's global binary directory (`~/.cargo/bin/` by default).
+
+To uninstall, run the command `cargo uninstall ruxgo`.
 
 ## Features & TODOs
 
@@ -75,21 +80,21 @@ You can also configure the log level with the environment variable `"RUXGO_LOG_L
 
 ## Ruxgo-apps
 
-Currently, there are two ways to build an app in the **/apps** directory: locally and on ruxos.
+The `apps/` directory places all the toml files that have been tested. Currently, there are two ways to build an app: locally and on ruxos
 
 - If building locally, you'll need to download the apps source code and then use ruxgo to build and run it.
 
-- If you want to build on ruxos, you need to copy `config_linux.toml` into ruxos **apps/c/&lt;name&gt;** , then download the apps source code and build it with ruxgo.
+- If you want to build on ruxos, you need to copy `config_linux.toml` from `ruxgo/apps/<name>/ruxos` into `ruxos/apps/c/<name>`, then download the apps source code and use ruxgo to build and run it.
 
 **Note:** Refer to the README.md in each app directory for details. The following applications are already supported:
 
+* [x] [redis](apps/redis)
+* [x] [sqlite3](apps/sqlite3)
+* [x] [iperf](apps/iperf)
 * [x] helloworld
 * [x] memtest
-* [x] redis
-* [x] sqlite3
 * [x] httpclient
 * [x] httpserver
-* [x] iperf
 * [x] nginx
 * [ ] python3
 
@@ -158,7 +163,7 @@ compiler = "gcc"
 [[targets]]
 name = "libsqlite3"
 src = "./sqlite-amalgamation-3410100"
-src_excluded = ["sqlite-amalgamation-3410100/shell.c"]
+src_excluded = ["shell.c"]
 include_dir = "./sqlite-amalgamation-3410100"
 type = "static"
 cflags = "-w -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_FLOATING_POINT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEBUG"
@@ -166,13 +171,13 @@ archive = "ar"
 ldflags = "rcs"
 
 [[targets]]
-name = "main"
+name = "local_sqlite3"
 src = "./"
 src_excluded = ["sqlite-amalgamation-3410100"]
 include_dir = "./"
 type = "exe"
 cflags = ""
-ldflags = "rust-lld -flavor gnu"
+ldflags = ""
 deps = ["libsqlite3"]
 ```
 
@@ -196,12 +201,11 @@ log = "error"
 [os.platform.qemu]
 blk = "y"
 graphic = "n"
-disk_img = "disk.img"
 
 [[targets]]
 name = "libsqlite3"
 src = "./sqlite-amalgamation-3410100"
-src_excluded = ["sqlite-amalgamation-3410100/shell.c"]
+src_excluded = ["shell.c"]
 include_dir = "./sqlite-amalgamation-3410100"
 type = "static"
 cflags = "-w -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_FLOATING_POINT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEBUG"
@@ -209,12 +213,13 @@ archive = "ar"
 ldflags = "rcs"
 
 [[targets]]
-name = "main"
+name = "ruxos_sqlite3"
 src = "./"
 src_excluded = ["sqlite-amalgamation-3410100"]
 include_dir = "./"
 type = "exe"
 cflags = ""
-ldflags = "rust-lld -flavor gnu"
+linker = "rust-lld -flavor gnu"
+ldflags = ""
 deps = ["libsqlite3"]
 ```

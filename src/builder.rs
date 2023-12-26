@@ -318,7 +318,7 @@ impl<'a> Target<'a> {
             (cmd, cmd_bin) = self.link_exe(objs, dep_targets);
         }
 
-        log(LogLevel::Info, &format!("Linking target: {}", &self.target_config.name));
+        log(LogLevel::Log, &format!("Linking target: {}", &self.target_config.name));
         log(LogLevel::Info, &format!("  Command: {}", &cmd));
         let output = Command::new("sh")
             .arg("-c")
@@ -514,6 +514,7 @@ impl<'a> Target<'a> {
             for dep_target in dep_targets {
                 if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
                     cmd.push_str(&dep_target.bin_path);
+                    cmd.push_str(" ");
                 } else if dep_target.target_config.typ == "dll" {
                     dep_target.target_config.include_dir.iter().for_each(|include| {
                         cmd.push_str(" -I");

@@ -1,0 +1,10 @@
+[build]
+compiler = "gcc"
+
+[[targets]]
+name = "httpserver"
+src = "./"
+include_dir = "./"
+type = "exe"
+cflags = "-Wno-format"
+ldflags = ""

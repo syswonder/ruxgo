@@ -1,0 +1,43 @@
+[build]
+compiler = "gcc"
+
+[[targets]]
+name = "libhiredis"
+src = "./deps/hiredis"
+src_excluded = ["/examples","/fuzzing","/test.c","/ssl.c","/dict.c"]
+include_dir = "./deps/hiredis"
+type = "static"
+cflags = "-std=c99 -c -O3 -fPIC -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb -pedantic"
+archive = "ar"
+ldflags = "rcs"
+
+[[targets]]
+name = "liblua"
+src = "./deps/lua/src"
+src_excluded = ["/luac.c","/lua.c","/print.c"]
+include_dir = "./deps/lua/src"
+type = "static"
+cflags = "-Wall -DLUA_ANSI -DENABLE_CJSON_GLOBAL -DREDIS_STATIC='' -DLUA_USE_MKSTEMP  -O2"
+archive = "ar"
+ldflags = "rc"
+
+[[targets]]
+name = "libhdrhistogram"
+src = "./deps/hdr_histogram"
+include_dir = "./deps/hdr_histogram"
+type = "static"
+cflags = "-std=c99 -Wall -Os -g -Wno-format -DHDR_MALLOC_INCLUDE=\\\"hdr_redis_malloc.h\\\""
+archive = "ar"
+ldflags = "rcs"
+
+[[targets]]
+name = "redis_server"
+src = "./src"
+src_excluded = ["/modules","/redis-benchmark.c","/ae_evport.c",
+                "/ae_epoll.c","/cli_common.c","/redis-cli.c",
+                "/ae_select.c","/ae_kqueue.c","/redisassert.c"]
+include_dir = "./src"
+type = "exe"
+cflags = "-pedantic -DREDIS_STATIC='' -std=c99 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb -Wno-format -MMD"
+ldflags = "-lm"
+deps = ["libhiredis","liblua","libhdrhistogram"]
