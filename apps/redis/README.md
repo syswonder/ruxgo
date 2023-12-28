@@ -2,7 +2,7 @@
 
 ## 1. Build and run locally
 
-Firstly, clone github repository of redis and configure it: 
+Firstly, get the redis source code and configure it: 
 
 ```bash
 wget https://github.com/redis/redis/archive/7.0.12.tar.gz
@@ -10,7 +10,7 @@ tar -zxvf 7.0.12.tar.gz && rm -f 7.0.12.tar.gz
 cd redis-7.0.12/src && ./mkreleasehdr.sh && cd ../..
 ```
 
-Then, you need to copy `config_linux.toml` from `ruxgo/apps/redis/local` and place it in the `redis-7.0.12/` directory you just downloaded. 
+Then, you need to copy `config_linux.toml` from `ruxgo/apps/redis/local` and place it in the `redis-7.0.12/` directory that you just downloaded. 
 
 Finally, cd into `redis-7.0.12`/ and execute the following commands to build and run it:
 

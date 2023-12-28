@@ -1,0 +1,13 @@
+[book]
+authors = ["Ybeichen"]
+language = "zh"
+multilingual = false
+src = "src"
+title = "Ruxgo 手册"
+
+[output.html]
+curly-quotes = true # Enable smart-punctuation feature for more than quotes.
+git-repository-url = "https://github.com/syswonder/ruxgo"
+search.use-boolean-and = true
+git-repository-icon = "fa-github"
+additional-js = ["assets/fzf.umd.js","assets/elasticlunr.js"]

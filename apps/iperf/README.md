@@ -5,13 +5,12 @@
 Firstly, clone github repository of iperf and configure it: 
 
 ```bash
-git clone -b 3.1-STABLE https://github.com/esnet/iperf.git
-./configure
+git clone -b 3.1-STABLE https://github.com/esnet/iperf.git && cd iperf && ./configure
 ```
 
 Then, you need to copy `config_linux.toml` from `ruxgo/apps/iperf/local` and place it in the `iperf/` directory you just downloaded. 
 
-Finally, execute the following commands to build and run it:
+Finally, cd into `iperf/` and execute the following commands to build and run it:
 
 ```bash
 # Build and Run

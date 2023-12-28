@@ -8,8 +8,9 @@ Firstly, get the sqlite3 source code:
 wget https://sqlite.org/2023/sqlite-amalgamation-3410100.zip
 unzip sqlite-amalgamation-3410100.zip && rm -f sqlite-amalgamation-3410100.zip
 ```
+Then, you need to copy `config_linux.toml` and `main.c` from `ruxgo/apps/redis/local` into the same directory as `sqlite-amalgamation-3410100` that you just downloaded.
 
-Then, execute the following commands to build and run it (the main.c already exists):
+Finally, execute the following commands to build and run it:
 
 ```bash
 # Build and Run
