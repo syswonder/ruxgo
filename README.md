@@ -2,7 +2,7 @@
 
 Ruxgo is a Cargo-like build tool for building C and C++ applications that relies solely on a Toml file. 
 
-**To start using Ruxgo**, learn more at The Ruxgo Book.
+**To start using Ruxgo**, learn more at [The Ruxgo Book](https://syswonder.github.io/ruxgo/).
 
 🚧 Working In Progress. 
 
@@ -13,7 +13,7 @@ To build the `ruxgo` executable from source, you will first need to install Rust
 Once you have installed Rust, the following command can be used to build and install Ruxgo:
 
 ```sh
-cargo install --git https://github.com/Ybeichen/ruxgo.git ruxgo
+cargo install --git https://github.com/syswonder/ruxgo.git ruxgo
 ```
 
 This will automatically download Ruxgo, build it, and install it in Cargo's global binary directory (`~/.cargo/bin/` by default).

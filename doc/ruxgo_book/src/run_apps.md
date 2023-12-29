@@ -7,9 +7,9 @@
 
 **注:** 有关详细信息，请参阅每个 app 目录下的 README.md。以下应用程序已获支持:
 
-* [x] [redis](https://github.com/Ybeichen/ruxgo/tree/master/apps/redis)
-* [x] [sqlite3](https://github.com/Ybeichen/ruxgo/tree/master/apps/sqlite3)
-* [x] [iperf](https://github.com/Ybeichen/ruxgo/tree/master/apps/iperf)
+* [x] [redis](https://github.com/syswonder/ruxgo/tree/master/apps/redis)
+* [x] [sqlite3](https://github.com/syswonder/ruxgo/tree/master/apps/sqlite3)
+* [x] [iperf](https://github.com/syswonder/ruxgo/tree/master/apps/iperf)
 * [x] helloworld
 * [x] memtest
 * [x] httpclient

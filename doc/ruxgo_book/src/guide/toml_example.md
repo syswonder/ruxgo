@@ -1,6 +1,6 @@
 # TOML 文件示例
 
-下面是 [sqlite3](https://github.com/Ybeichen/ruxgo/tree/master/apps/sqlite3) 的 Toml 文件示例，具体运行可参考 `apps/sqlite3` 下的 README.md 。
+下面是 [sqlite3](https://github.com/syswonder/ruxgo/tree/master/apps/sqlite3) 的 Toml 文件示例，具体运行可参考 `apps/sqlite3` 下的 README.md 。
 
 带有库和可执行文件的示例文件（在本地运行）:
 

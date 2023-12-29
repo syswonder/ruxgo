@@ -6,7 +6,7 @@
 
 当 [os] 模块的平台是 "x86_64-qemu-q35" 时，编译器类型不再是 "gcc"，它将变成 "x86_64-linux-musl-gcc"。此外，所有 [targets] 的 cflags 都默认添加了 "-nostdinc -fno-builtin -ffreestanding -Wall"，当 [targets] 类型是 "exe" 时，ldflags 还默认添加了 "-nostdlib -static -no-pie --gc-sections"，你不需要去手动添加它们。当然，根据架构和平台的不同，还有其他默认的添加及改变。
 
-Ruxgo 通过修改一些代码逻辑实现，这么做是为了，如果你能在本地跑通一个程序，那么只需要将定制的 [os] 模块拼接到你本地跑通的模块上，即可实现在 RuxOS 上流畅的运行，而不需要额外的操作!
+Ruxgo 这么做是为了，如果你能在本地跑通一个程序，那么只需要将定制的 [os] 模块拼接到你本地跑通的模块上，即可实现在 RuxOS 上流畅的运行，而不需要额外的操作!
 
 具体 **[os]** 模块描述如下:
 
