@@ -264,28 +264,42 @@ impl TargetConfig {
     /// Returns a vec of all filenames ending in .cpp or .c in the src directory
     /// # Arguments
     /// * `path` - The path to the src directory
-    fn get_src_names(path: &str) -> Vec<String> {
-        if path.is_empty() {
+    fn get_src_names(tgt_path: &str, src_exclude: &mut Vec<&str>) -> Vec<String> {
+        if tgt_path.is_empty() {
             return Vec::new();
         }
         let mut src_names = Vec::new();
-        let src_path = Path::new(&path);
+        let src_path = Path::new(&tgt_path);
         let src_entries = std::fs::read_dir(src_path).unwrap_or_else(|_| {
-            log(LogLevel::Error, &format!("Could not read src dir: {}", path));
+            log(LogLevel::Error, &format!("Could not read src dir: {}", tgt_path));
             std::process::exit(1);
         });
+        // Traverse all entrys
         for entry in src_entries {
             let entry = entry.unwrap();
-            let path = entry.path();
-            if path.is_file() {
-                let file_name = path.file_name().unwrap().to_str().unwrap();
-                if file_name.ends_with(".cpp") || file_name.ends_with(".c") {
-                    src_names.push(file_name.to_string());
+            let path = entry.path().to_str().unwrap().to_string().replace("\\", "/");
+            if entry.path().is_dir() {
+                let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
+                if skip_dir {
+                    log(LogLevel::Debug, &format!("Skipping directory: {}", path));
+                    src_exclude.retain(|&excluded| !path.contains(excluded));
+                    continue;
                 }
-            } else if path.is_dir() {
-                let dir_name = path.to_str().unwrap().replace("\\", "/");
-                let mut dir_src_names = TargetConfig::get_src_names(&dir_name);
+                let mut dir_src_names = TargetConfig::get_src_names(&path, src_exclude);
                 src_names.append(&mut dir_src_names);
+            } else if entry.path().is_file() {
+                let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
+                if skip_file {
+                    log(LogLevel::Debug, &format!("Skipping file: {}", path));
+                    src_exclude.retain(|&excluded| !path.ends_with(excluded));
+                    continue;
+                }
+                if !path.ends_with(".cpp") && !path.ends_with(".c") {
+                    continue;
+                }
+                let file_path = entry.path();
+                let file_name = file_path.file_name().unwrap().to_str().unwrap();
+                src_names.push(file_name.to_string());
             }
         }
         src_names
@@ -299,7 +313,7 @@ impl TargetConfig {
             let mut j = i + 1;
             while j < targets.len() {
                 if targets[i].deps.contains(&targets[j].name) {
-                    //Check for circular dependencies
+                    // Check for circular dependencies
                     if targets[j].deps.contains(&targets[i].name) {
                         log(
                             LogLevel::Error,
@@ -458,15 +472,15 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
     // Check duplicate srcs in target(no remove)
     if check_dup_src {
         for target in &tgt {
-            let mut src_file_names = TargetConfig::get_src_names(&target.src);
+            let mut src_exclude:Vec<&str> = target.src_excluded.iter().map(|s| s.as_str()).collect();
+            let mut src_file_names = TargetConfig::get_src_names(&target.src, &mut src_exclude);
             src_file_names.sort();
             if !src_file_names.is_empty() {
                 for i in 0..src_file_names.len() - 1 {
                     if src_file_names[i] == src_file_names[i + 1] {
-                        log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
-                        log(LogLevel::Error, "Source files must be unique");
-                        log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
-                        std::process::exit(1);
+                        log(LogLevel::Warn, &format!("Duplicate source files found for target: {}", target.name));
+                        log(LogLevel::Warn, "Source files must be unique");
+                        log(LogLevel::Warn, &format!("Duplicate file: {}", src_file_names[i]));
                     }
                 }
             } else {
