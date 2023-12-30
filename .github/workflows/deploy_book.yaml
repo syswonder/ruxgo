@@ -1,6 +1,8 @@
 name: Deploy ruxgo_book
 on:
   push:
+    paths:
+      - 'doc/**'
     branches:
       - master
 
