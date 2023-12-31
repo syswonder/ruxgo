@@ -1,6 +1,6 @@
 [package]
 name = "ruxgo"
-version = "0.8.7"
+version = "0.8.8"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"

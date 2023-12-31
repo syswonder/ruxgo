@@ -530,8 +530,8 @@ pub fn run (
         std::process::exit(1);
     }
     if os_config.platform.qemu != QemuConfig::default() {
-        let (qemu_args_final, _) = QemuConfig::config_qemu(&os_config.platform.qemu, &os_config.platform, &trgt);
-        // enable virtual disk image
+        let (qemu_args, qemu_args_debug) = QemuConfig::config_qemu(&os_config.platform.qemu, &os_config.platform, &trgt);
+        // enable virtual disk image if need
         if os_config.platform.qemu.blk == "y" {
             let path = Path::new(&os_config.platform.qemu.disk_img);
             if path.exists() {
@@ -540,7 +540,15 @@ pub fn run (
                 make_disk_image_fat32(&os_config.platform.qemu.disk_img);
             }
         }
-        run_qemu(qemu_args_final);
+        // enable qemu gdb guest if need
+        if &os_config.platform.qemu.debug == "y" {
+            run_qemu_debug(qemu_args_debug, bin_args);
+        } else if &os_config.platform.qemu.debug == "n" {
+            run_qemu(qemu_args, bin_args);
+        } else {
+            log(LogLevel::Error, "Debug field must be one of 'y' or 'n'");
+            std::process::exit(1);
+        }
     } else {
         log(LogLevel::Log, &format!("Running: {}", &trgt.bin_path));
         let mut cmd = Command::new(&trgt.bin_path);
@@ -550,7 +558,6 @@ pub fn run (
             }
         }
         log(LogLevel::Info, &format!("Command: {:?}", cmd));
-        // sets the stdout,stdin and stderr of the cmd to be inherited by the parent process.
         cmd.stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
@@ -591,14 +598,20 @@ fn make_disk_image_fat32(file_name: &str) {
 }
 
 /// Runs the bin by qemu
-fn run_qemu(qemu_args: Vec<String>) {
+fn run_qemu(qemu_args: Vec<String>, bin_args: Option<Vec<&str>>) {
     log(LogLevel::Log, "Running on qemu...");
     let mut cmd = String::new();
     for qemu_arg in qemu_args {
         cmd.push_str(&qemu_arg);
         cmd.push_str(" ");
     }
-    log(LogLevel::Debug, &format!("Command: {}", cmd));
+    if let Some(bin_args) = bin_args {
+        for arg in bin_args {
+            cmd.push_str(arg);
+            cmd.push_str(" ");
+        }
+    }
+    log(LogLevel::Info, &format!("Command: {}", cmd));
     let output = Command::new("sh")
         .arg("-c")
         .arg(cmd)
@@ -606,7 +619,37 @@ fn run_qemu(qemu_args: Vec<String>) {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .output()
-        .expect("Failed to execute command");
+        .expect("Failed to start qemu");
+    if !output.status.success() {
+        log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
+        std::process::exit(1);
+    }
+}
+
+/// Runs the bin by qemu and enable gdb guest
+fn run_qemu_debug(qemu_debug_args: Vec<String>, bin_args: Option<Vec<&str>>) {
+    log(LogLevel::Log, "Debugging on qemu...");
+    let mut cmd = String::new();
+    for qemu_debug_arg in qemu_debug_args {
+        cmd.push_str(&qemu_debug_arg);
+        cmd.push_str(" ");
+    }
+    if let Some(bin_args) = bin_args {
+        for arg in bin_args {
+            cmd.push_str(arg);
+            cmd.push_str(" ");
+        }
+    }
+    log(LogLevel::Info, &format!("Command: {}", cmd));
+    log(LogLevel::Log, "QEMU is listening for GDB connection on port 1234...");
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .output()
+        .expect("Failed to start qemu");
     if !output.status.success() {
         log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
         std::process::exit(1);

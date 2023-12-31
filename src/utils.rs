@@ -103,6 +103,7 @@ pub struct PlatformConfig {
 /// Struct descibing the qemu config of the local project
 #[derive(Debug, Default, PartialEq)]
 pub struct QemuConfig {
+    pub debug: String,
     pub blk: String,
     pub net: String,
     pub graphic: String,
@@ -534,6 +535,7 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
     let empty_qemu = Value::Table(toml::map::Map::default());
     let qemu = config.get("qemu").unwrap_or(&empty_qemu);
     if let Some(qemu_table) = qemu.as_table() {
+        let debug = parse_cfg_string(qemu_table, "debug", "n");
         let blk = parse_cfg_string(qemu_table, "blk", "n");
         let net = parse_cfg_string(qemu_table, "net", "n");
         let graphic = parse_cfg_string(qemu_table, "graphic", "n");
@@ -565,7 +567,9 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
         let gw = parse_cfg_string(qemu_table, "gw", "10.0.2.2");
         let args = parse_cfg_string(qemu_table, "args", "");
         let envs = parse_cfg_string(qemu_table, "envs", "");
-        QemuConfig {blk, net, graphic, bus, disk_img, v9p, v9p_path, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs}
+        QemuConfig {
+            debug, blk, net, graphic, bus, disk_img, v9p, v9p_path, accel, qemu_log, net_dump, net_dev, ip, gw, args, envs
+        }
     } else {
         log(LogLevel::Error, "Qemu is not a table");
         std::process::exit(1);
