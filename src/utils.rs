@@ -78,7 +78,7 @@ pub struct BuildConfig {
 }
 
 /// Struct descibing the OS config of the local project
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct OSConfig {
     pub name: String,
     pub features: Vec<String>,
@@ -87,7 +87,7 @@ pub struct OSConfig {
 }
 
 /// Struct descibing the platform config of the local project
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct PlatformConfig {
     pub name: String,
     pub arch: String,
@@ -101,7 +101,7 @@ pub struct PlatformConfig {
 }
 
 /// Struct descibing the qemu config of the local project
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct QemuConfig {
     pub debug: String,
     pub blk: String,

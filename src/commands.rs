@@ -6,6 +6,7 @@ use std::path::Path;
 use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
+extern crate num_cpus;
 
 static ROOT_DIR: &str = "ruxos_bld";
 static BUILD_DIR: &str = "ruxos_bld/bin";
@@ -342,18 +343,32 @@ pub fn build(
     
     // Construct os and ulib
     if os_config != &OSConfig::default() {
+        log(LogLevel::Log, &format!("Compiling OS: {}, Ulib: {} ", os_config.name, os_config.ulib));
         let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-        if os_config.ulib == "ruxlibc" {
-            log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-            build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
-            log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
-            build_ruxlibc(build_config, os_config, gen_cc);
-        } else if os_config.ulib == "ruxmusl" {
-            log(LogLevel::Log, &format!("Compiling OS: {}", os_config.name));
-            build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
-            log(LogLevel::Log, &format!("Compiling Ulib: {}", os_config.ulib));
-            build_ruxmusl(build_config, os_config);
-        }
+
+        // thread os
+        let os_config_clone = os_config.clone();
+        let rux_feats_final_clone = rux_feats_final.clone();
+        let lib_feats_final_clone = lib_feats_final.clone();
+        let thread_os = std::thread::spawn(move || {
+            build_os(&os_config_clone, &os_config_clone.ulib, &rux_feats_final_clone, &lib_feats_final_clone);
+        });
+
+        // thread ulib
+        let build_config_clone = build_config.clone();
+        let os_config_clone_ = os_config.clone();
+        let gen_cc_clone = gen_cc.clone();
+        let thread_ulib = std::thread::spawn(move || {
+            if os_config_clone_.ulib == "ruxlibc" {
+                build_ruxlibc(&build_config_clone, &os_config_clone_, gen_cc_clone);
+            } else if os_config_clone_.ulib == "ruxmusl" {
+                build_ruxmusl(&build_config_clone, &os_config_clone_);
+            }
+        });
+
+        // join thread
+        thread_os.join().expect("Thread OS panicked");
+        thread_ulib.join().expect("Thread Ulib panicked");
     };
 
     // Construct each target separately
@@ -394,9 +409,13 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
     };
     // add features
     let features = [&rux_feats[..], &lib_feats[..]].concat().join(" ");
+    // number of parallel jobs
+    let num_cores = num_cpus::get();
+    log(LogLevel::Debug, &format!("Num_cores: {}", num_cores));
+    // cmd
     let cmd = format!(
-        "cargo build {} {} {} {} {} --features \"{}\"",
-        target, target_dir, mode, os_ulib, verbose, features
+        "cargo build {} {} {} {} {} --features \"{}\" -j {}",
+        target, target_dir, mode, os_ulib, verbose, features, num_cores
     );
     log(LogLevel::Info, &format!("Command: {}", cmd));
     let output = Command::new("sh")
@@ -486,7 +505,7 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
         }
 
         // compile and install ruxmusl
-        log(LogLevel::Log, "Musl source code is installing...");
+        log(LogLevel::Log, "Compiling and installing Musl...");
         let make_output = Command::new("make")
             .args(&["-j"])
             .current_dir(RUXMUSL_DIR)

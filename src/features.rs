@@ -47,7 +47,7 @@ pub fn cfg_feat_addprefix(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
         "ruxlibc" => "ruxlibc/",
         "ruxmusl" => "ruxmusl/",
         _ => {
-            log(LogLevel::Error, "Invalid ulib value");
+            log(LogLevel::Error, "Ulib must be one of \"ruxlibc\" or \"ruxmusl\"");
             std::process::exit(1);
         }
     };
