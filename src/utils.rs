@@ -299,8 +299,8 @@ impl TargetConfig {
                     continue;
                 }
                 let file_path = entry.path();
-                let file_name = file_path.file_name().unwrap().to_str().unwrap();
-                src_names.push(file_name.to_string());
+                let file_path_str = file_path.to_str().unwrap();
+                src_names.push(file_path_str.to_string());
             }
         }
         src_names
@@ -479,9 +479,10 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             if !src_file_names.is_empty() {
                 for i in 0..src_file_names.len() - 1 {
                     if src_file_names[i] == src_file_names[i + 1] {
-                        log(LogLevel::Warn, &format!("Duplicate source files found for target: {}", target.name));
-                        log(LogLevel::Warn, "Source files must be unique");
-                        log(LogLevel::Warn, &format!("Duplicate file: {}", src_file_names[i]));
+                        log(LogLevel::Error, &format!("Duplicate source files found for target: {}", target.name));
+                        log(LogLevel::Error, "Source files must be unique");
+                        log(LogLevel::Error, &format!("Duplicate file: {}", src_file_names[i]));
+                        std::process::exit(1);
                     }
                 }
             } else {
