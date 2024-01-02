@@ -4,6 +4,8 @@ use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
 use ruxgo::global_cfg::GlobalConfig;
 use dialoguer::MultiSelect;
+use std::env;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,6 +25,9 @@ struct Args {
     /// Initialize a new project. See `init --help` for more info
     #[command(subcommand)]
     commands: Option<Commands>,
+    /// Path argument to pass to switch to the specified directory
+    #[arg(long, num_args(1))]
+    path: Option<PathBuf>,
     /// Arguments to pass to the executable when running
     #[arg(long, num_args(1..), require_equals(true), value_delimiter(','))]
     bin_args: Option<Vec<String>>,
@@ -94,6 +99,13 @@ license = "NONE"
 
     // Parse args
     let args = Args::parse();
+
+    if let Some(ref path_buf) = args.path {
+        if let Err(e) = env::set_current_dir(&path_buf) {
+            eprintln!("Error path: {}", e);
+        }
+    }
+
     if args.commands.is_some() {
         match args.commands {
             Some(Commands::Init { name, c, cpp }) => {
@@ -144,9 +156,6 @@ license = "NONE"
 
     let (build_config, os_config, targets, packages) = commands::parse_config();
 
-    // Add environment config
-    utils::config_env(&os_config);
-
     if args.update_packages {
         commands::update_packages(&packages);
         std::process::exit(0);
@@ -191,8 +200,7 @@ license = "NONE"
     }
 
     if args.run {
-        let bin_args: Option<Vec<&str>> = args
-            .bin_args
+        let bin_args: Option<Vec<&str>> = args.bin_args
             .as_ref()
             .map(|x| x.iter().map(|x| x.as_str()).collect());
 

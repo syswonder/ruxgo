@@ -919,6 +919,9 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
     #[cfg(target_os = "windows")]
     let packages = Package::parse_packages("./config_win32.toml");
 
+    // Add environment config
+    utils::config_env(&os_config);
+
     (build_config, os_config, targets, packages)
 }
 
