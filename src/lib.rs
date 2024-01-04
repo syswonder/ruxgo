@@ -18,3 +18,5 @@ pub mod hasher;
 pub mod features;
 /// Handles global config
 pub mod global_cfg;
+/// Contains packages management related functions
+pub mod packages;

@@ -3,6 +3,7 @@ use ruxgo::{utils, commands};
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
 use ruxgo::global_cfg::GlobalConfig;
+use ruxgo::packages::{list_packages, pull_packages, run_app};
 use dialoguer::MultiSelect;
 use std::env;
 use std::path::PathBuf;
@@ -59,6 +60,19 @@ enum Commands {
         /// Initialize a C++ project
         cpp: bool,
     },
+    /// List available packages in the remote repository
+    Pkg,
+    /// Pull a specific package from the remote repository
+    Pull {
+        /// Name of the package to pull
+        pkg_name: String,
+    },
+    /// Run a specific app
+    Run {
+        #[clap(help = "Name of the app to run")]
+        /// Name of the app to run
+        app_name: String,
+    },
     /// Configuration settings
     Config {
         /// Parameter to set currently supported parameters:
@@ -76,7 +90,8 @@ enum Commands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Add global config
     let project_dirs = ProjectDirs::from("com", "RuxosApps", "ruxos-c").unwrap();
     let config_dir = project_dirs.config_dir();
@@ -125,6 +140,15 @@ license = "NONE"
                     commands::init_project(&name, Some(false), &global_config);
                 }
             }
+            Some(Commands::Pkg) => {
+                list_packages().await.expect("Failed to list packages");
+            },
+            Some(Commands::Pull { pkg_name }) => {
+                pull_packages(&pkg_name).await.expect("Failed to pull package");
+            },
+            Some(Commands::Run { app_name}) => {
+                run_app(&app_name);
+            },
             Some(Commands::Config { parameter, value }) => {
                 let parameter = parameter.as_str();
                 let value = value.as_str();
@@ -154,20 +178,21 @@ license = "NONE"
         commands::pre_gen_vsc();
     }
 
-    let (build_config, os_config, targets, packages) = commands::parse_config();
-
     if args.update_packages {
+        let (_, _, _, packages) = commands::parse_config();
         commands::update_packages(&packages);
         std::process::exit(0);
     }
 
     if args.restore_packages {
+        let (_, _, _, packages) = commands::parse_config();
         commands::restore_packages(&packages);
         std::process::exit(0);
     }
 
     // If clean flag is provided, prompt user for choices
     if args.clean {
+        let (_, os_config, targets, packages) = commands::parse_config();
         let mut items = vec!["All", "App_libs", "Obj"];
         if os_config != OSConfig::default() {
             items.push("OS");
@@ -195,11 +220,13 @@ license = "NONE"
     }
 
     if args.build {
+        let (build_config, os_config, targets, packages) = commands::parse_config();
         utils::log(utils::LogLevel::Log, "Building...");
         commands::build(&build_config, &targets, &os_config, gen_cc, gen_vsc, &packages);
     }
 
     if args.run {
+        let (build_config, os_config, targets, packages) = commands::parse_config();
         let bin_args: Option<Vec<&str>> = args.bin_args
             .as_ref()
             .map(|x| x.iter().map(|x| x.as_str()).collect());

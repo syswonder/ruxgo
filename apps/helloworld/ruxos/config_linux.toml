@@ -6,12 +6,12 @@ name = "ruxos"
 services = []
 ulib = "ruxlibc"
 
-[platform]
+[os.platform]
 name = "x86_64-qemu-q35"
 mode = "release"
 log = "info"
 
-[platform.qemu]
+[os.platform.qemu]
 graphic = "y"
 
 [[targets]]
