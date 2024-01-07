@@ -3,14 +3,14 @@ use ruxgo::{utils, commands};
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
 use ruxgo::global_cfg::GlobalConfig;
-use ruxgo::packages::{list_packages, pull_packages, run_app};
+use ruxgo::packages;
 use dialoguer::MultiSelect;
 use std::env;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct CLIArgs {
     /// Build your project
     #[arg(short, long)]
     build: bool,
@@ -38,12 +38,6 @@ struct Args {
     /// Generate .vscode/c_cpp_properties.json
     #[arg(long)]
     gen_vsc: bool,
-    /// Update packages
-    #[arg(long)]
-    update_packages: bool,
-    /// Restore packages
-    #[arg(long)]
-    restore_packages: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -60,18 +54,27 @@ enum Commands {
         /// Initialize a C++ project
         cpp: bool,
     },
-    /// List available packages in the remote repository
-    Pkg,
-    /// Pull a specific package from the remote repository
-    Pull {
-        /// Name of the package to pull
-        pkg_name: String,
-    },
-    /// Run a specific app
-    Run {
-        #[clap(help = "Name of the app to run")]
-        /// Name of the app to run
-        app_name: String,
+    /// Package management
+    #[clap(name = "pkg", arg_required_else_help = true)]
+    Pkg {
+        /// List available packages in the remote repository
+        #[arg(short, long)]
+        list: bool,
+        /// Pull a specific package from the remote repository
+        #[clap(short, long, value_name = "PKG_NAME")]
+        pull: Option<String>,
+        /// Run a specific app-bin
+        #[clap(short, long, value_name = "APP_BIN")]
+        run: Option<String>,
+        /// Update a specific package
+        #[clap(short, long, value_name = "PKG_NAME")]
+        update: Option<String>,
+        /// Clean a specific package
+        #[clap(short, long, value_name = "PKG_NAME")]
+        clean: Option<String>,
+        /// Clean all packages
+        #[arg(long)]
+        clean_all: bool,
     },
     /// Configuration settings
     Config {
@@ -113,7 +116,7 @@ license = "NONE"
     let global_config = GlobalConfig::from_file(&config);
 
     // Parse args
-    let args = Args::parse();
+    let args = CLIArgs::parse();
 
     if let Some(ref path_buf) = args.path {
         if let Err(e) = env::set_current_dir(&path_buf) {
@@ -140,15 +143,39 @@ license = "NONE"
                     commands::init_project(&name, Some(false), &global_config);
                 }
             }
-            Some(Commands::Pkg) => {
-                list_packages().await.expect("Failed to list packages");
-            },
-            Some(Commands::Pull { pkg_name }) => {
-                pull_packages(&pkg_name).await.expect("Failed to pull package");
-            },
-            Some(Commands::Run { app_name}) => {
-                run_app(&app_name);
-            },
+            Some(Commands::Pkg { list, pull, run, update, clean, clean_all }) => {
+                if list {
+                    packages::list_packages().await.expect("Failed to list packages");
+                }
+                if let Some(pkg_name) = pull {
+                    packages::pull_packages(&pkg_name).await.expect("Failed to pull package");
+                }
+                if let Some(app_name) = run {
+                    packages::run_app(&app_name).expect("Failed to run app-bin");
+                }
+                if let Some(pkg_name) = update {
+                    packages::update_package(&pkg_name).await.expect("Failed to update package");
+                }
+                if let Some(pkg_name) = clean {
+                    packages::clean_package(&pkg_name).await.expect("Failed to clean package");
+                }
+                if clean_all {
+                    let items = vec!["All", "App-bin", "App-src", "Kernel", "Script", "Cache"];
+                    let defaults = vec![false; items.len()];
+                    let choices = MultiSelect::new()
+                        .with_prompt("What parts do you want to clean?")
+                        .items(&items)
+                        .defaults(&defaults)
+                        .interact_opt()
+                        .unwrap_or_else(|_| None)
+                        .unwrap_or_else(|| Vec::new())
+                        .iter()
+                        .map(|&index| String::from(items[index]))
+                        .collect();
+                    utils::log(utils::LogLevel::Log, "Cleaning packages...");
+                    packages::clean_all_packages(choices).expect("Failed to clean choice packages");
+                }
+            }
             Some(Commands::Config { parameter, value }) => {
                 let parameter = parameter.as_str();
                 let value = value.as_str();
@@ -176,18 +203,6 @@ license = "NONE"
     if args.gen_vsc {
         gen_vsc = true;
         commands::pre_gen_vsc();
-    }
-
-    if args.update_packages {
-        let (_, _, _, packages) = commands::parse_config();
-        commands::update_packages(&packages);
-        std::process::exit(0);
-    }
-
-    if args.restore_packages {
-        let (_, _, _, packages) = commands::parse_config();
-        commands::restore_packages(&packages);
-        std::process::exit(0);
     }
 
     // If clean flag is provided, prompt user for choices

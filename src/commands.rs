@@ -946,17 +946,3 @@ pub fn pre_gen_vsc() {
         fs::File::create(Path::new("./.vscode/c_cpp_properties.json")).unwrap();
     }
 }
-
-pub fn update_packages(packages: &Vec<utils::Package>) {
-    log(LogLevel::Log, "Updating packages...");
-    for package in packages {
-        package.update();
-    }
-}
-
-pub fn restore_packages(packages: &Vec<utils::Package>) {
-    log(LogLevel::Log, "Restoring packages...");
-    for package in packages {
-        package.restore();
-    }
-}

@@ -670,60 +670,6 @@ impl Package {
             sub_packages,
         }
     }
-    
-    /// Updates the package to latest commit
-    pub fn update(&self) {
-        let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./ruxos_bld/packages/{}", self.name));
-        log(LogLevel::Log, &format!("Updating package: {}", self.name));
-        cmd.push_str(" &&");
-        cmd.push_str(" git");
-        cmd.push_str(" pull");
-        cmd.push_str(" origin");
-        cmd.push_str(&format!(" {}", self.branch));
-        let com = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .unwrap_or_else(|e| {
-                log(LogLevel::Error, &format!("Failed to update package: {}", e));
-                std::process::exit(1);
-            });
-        if com.status.success() {
-            log(LogLevel::Log, &format!("Successfully updated package: {}", self.name));
-            log(LogLevel::Log, &format!("Output: {}", String::from_utf8_lossy(&com.stdout)).replace("\r", "").replace("\n", ""));
-        } else {
-            log(LogLevel::Error, &format!("Failed to update package: {}", String::from_utf8_lossy(&com.stderr)));
-            std::process::exit(1);
-        }
-    }
-
-    /// Restores package to last offline commit
-    pub fn restore(&self) {
-        let mut cmd = String::from("cd");
-        cmd.push_str(&format!(" ./ruxos_bld/packages/{}", self.name));
-        log(LogLevel::Log, &format!("Updating package: {}", self.name));
-        cmd.push_str(" &&");
-        cmd.push_str(" git");
-        cmd.push_str(" reset");
-        cmd.push_str(" --hard");
-        cmd.push_str(&format!(" {}", self.branch));
-        let com = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .unwrap_or_else(|e| {
-                log(LogLevel::Error, &format!("Failed to restore package: {}", e));
-                std::process::exit(1);
-            });
-        if com.status.success() {
-            log(LogLevel::Log, &format!("Successfully restored package: {}", self.name));
-            log(LogLevel::Log, &format!("Output: {}", String::from_utf8_lossy(&com.stdout)).replace("\r", "").replace("\n", ""));
-        } else {
-            log(LogLevel::Error, &format!("Failed to restore package: {}", String::from_utf8_lossy(&com.stderr)));
-            std::process::exit(1);
-        }
-    }
 
     /// Parses a package contained in a folder
     /// The folder must contain a config toml file
