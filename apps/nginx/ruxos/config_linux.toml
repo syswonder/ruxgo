@@ -28,7 +28,7 @@ net_dev = "user"
 [[targets]]
 name = "libcore"
 src = "nginx-1.24.0/src/core"
-src_excluded = ["ngx_regex.c","ngx_thread_pool.c"]
+src_exclude = ["ngx_regex.c","ngx_thread_pool.c"]
 include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
 type = "object"
@@ -38,7 +38,7 @@ ldflags = "-r"
 [[targets]]
 name = "libevent"
 src = "nginx-1.24.0/src/event"
-src_excluded = ["/modules","ngx_event_acceptex.c","ngx_event_connectex.c",
+src_exclude = ["/modules","ngx_event_acceptex.c","ngx_event_connectex.c",
             "ngx_event_openssl_stapling.c","ngx_event_openssl.c"]
 include_dir = ["./objs","nginx-1.24.0/src/core","nginx-1.24.0/src/event",
                 "nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix"]
@@ -49,7 +49,7 @@ ldflags = "-r"
 [[targets]]
 name = "libevent_modules"
 src = "nginx-1.24.0/src/event/modules"
-src_excluded = [
+src_exclude = [
             "ngx_devpoll_module.c","ngx_eventport_module.c",
             "ngx_iocp_module.c","ngx_kqueue_module.c",
             "ngx_poll_module.c","ngx_win32_poll_module.c",
@@ -64,7 +64,7 @@ ldflags = "-r"
 [[targets]]
 name = "libos_unix"
 src = "nginx-1.24.0/src/os/unix"
-src_excluded = [
+src_exclude = [
             "ngx_darwin_init.c","ngx_darwin_sendfile_chain.c",
             "ngx_file_aio_read.c","ngx_freebsd_init.c",
             "ngx_freebsd_sendfile_chain.c","ngx_linux_aio_read.c",
@@ -80,7 +80,7 @@ ldflags = "-r"
 [[targets]]
 name = "libhttp"
 src = "nginx-1.24.0/src/http"
-src_excluded = ["/modules","/v2","ngx_http_file_cache.c",
+src_exclude = ["/modules","/v2","ngx_http_file_cache.c",
             "ngx_http_huff_decode.c","ngx_http_huff_encode.c"]
 include_dir = ["nginx-1.24.0/src/http","nginx-1.24.0/src/http/modules","nginx-1.24.0/src/core",
                 "nginx-1.24.0/src/event","nginx-1.24.0/src/event/modules","nginx-1.24.0/src/os/unix","./objs"]
@@ -91,7 +91,7 @@ ldflags = "-r"
 [[targets]]
 name = "libhttp_modules"
 src = "nginx-1.24.0/src/http/modules"
-src_excluded = [
+src_exclude = [
             "/perl","ngx_http_addition_filter_module.c",
             "ngx_http_auth_basic_module.c","ngx_http_auth_request_module.c",
             "ngx_http_dav_module.c","ngx_http_degradation_module.c",

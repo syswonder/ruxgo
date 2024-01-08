@@ -443,7 +443,8 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
     let ulib_tgt = TargetConfig {
         name: "libc".to_string(),
         src: format!("../../../ulib/ruxlibc/c"),
-        src_excluded: Vec::new(),
+        src_only: Vec::new(),
+        src_exclude: Vec::new(),
         include_dir: Vec::new(),    // this is empty to avoid repetition at src build
         typ: "static".to_string(),
         cflags: String::from(""),

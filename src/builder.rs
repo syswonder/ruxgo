@@ -102,6 +102,7 @@ impl<'a> Target<'a> {
         let hash_file_path = format!("ruxos_bld/{}.linux.hash", &target_config.name);
         let path_hash = hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
+
         // add dependant libs
         for dependant_lib in &target_config.deps {
             for target in targets {
@@ -117,6 +118,7 @@ impl<'a> Target<'a> {
                 }
             }
         }
+
         // check types of the dependant libs
         for dep_lib in &dependant_libs {
             if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" && dep_lib.target_config.typ != "object" {
@@ -164,8 +166,7 @@ impl<'a> Target<'a> {
             dependant_libs,
             packages,
         };
-        let mut src_exclude:Vec<&str> = target_config.src_excluded.iter().map(|s| s.as_str()).collect();
-        target.get_srcs(&target_config.src, &mut src_exclude);
+        target.get_srcs(&target_config.src);
         target
     }
 
@@ -644,7 +645,9 @@ impl<'a> Target<'a> {
     }
 
     /// Recursively gets all the source files in the given root path
-    fn get_srcs(&mut self, root_path: &str, src_exclude: &mut Vec<&str>) -> Vec<Src> {
+    /// # Notes
+    /// The source is first filtered through the `src_only` and `src_exclude` fields
+    fn get_srcs(&mut self, root_path: &str) -> Vec<Src> {
         if root_path.is_empty() {
             return Vec::new();
         }
@@ -654,30 +657,44 @@ impl<'a> Target<'a> {
             log(LogLevel::Error, &format!("Could not read directory: {}", root_path));
             std::process::exit(1);
         });
+
+        // Convert src_only and src_exclude to a Vec<&str> for easier comparison
+        let src_only: Vec<&str> = self.target_config.src_only.iter().map(AsRef::as_ref).collect();
+        let src_exclude: Vec<&str> = self.target_config.src_exclude.iter().map(AsRef::as_ref).collect();
+
+        // Iterate over all entrys
         for entry in root_entries {
-            let entry = entry.unwrap(); 
+            let entry = entry.unwrap();
             let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
-            if entry.path().is_dir() {  
-                let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
-                if skip_dir {
-                    log(LogLevel::Debug, &format!("Skipping directory: {}", path));
-                    src_exclude.retain(|&excluded| !path.contains(excluded));
-                    continue;
-                }
-                srcs.append(&mut self.get_srcs(&path, src_exclude));
+
+            // Inclusion logic: Check if the path is in src_only
+            let include = if !src_only.is_empty() {
+                src_only.iter().any(|&included| path.contains(included))
             } else {
-                let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
-                if skip_file {
-                    log(LogLevel::Debug, &format!("Skipping file: {}", path));
-                    src_exclude.retain(|&excluded| !path.ends_with(excluded));
-                    continue;
-                }
+                true // If src_only is empty, include all
+            };
+            if !include {
+                log(LogLevel::Debug, &format!("Excluding (not in src_only): {}", path));
+                continue;
+            }
+
+            // Exclusion logic: Check if the path is in src_exclude
+            let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
+            if exclude {
+                log(LogLevel::Debug, &format!("Excluding (in src_exclude): {}", path));
+                continue;
+            }
+
+            if entry.path().is_dir() {
+                srcs.append(&mut self.get_srcs(&path));
+            } else {
                 if !path.ends_with(".cpp") && !path.ends_with(".c") {
                     continue;
                 }
                 self.add_src(path);
             }
         }
+
         srcs
     }
 

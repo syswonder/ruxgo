@@ -251,7 +251,8 @@ impl QemuConfig {
 pub struct TargetConfig {
     pub name: String,
     pub src: String,
-    pub src_excluded: Vec<String>,
+    pub src_only: Vec<String>,
+    pub src_exclude: Vec<String>,
     pub include_dir: Vec<String>,
     pub typ: String,
     pub cflags: String,
@@ -265,7 +266,7 @@ impl TargetConfig {
     /// Returns a vec of all filenames ending in .cpp or .c in the src directory
     /// # Arguments
     /// * `path` - The path to the src directory
-    fn get_src_names(tgt_path: &str, src_exclude: &mut Vec<&str>) -> Vec<String> {
+    fn get_src_names(&self, tgt_path: &str) -> Vec<String> {
         if tgt_path.is_empty() {
             return Vec::new();
         }
@@ -275,26 +276,37 @@ impl TargetConfig {
             log(LogLevel::Error, &format!("Could not read src dir: {}", tgt_path));
             std::process::exit(1);
         });
-        // Traverse all entrys
+
+        // Convert src_only and src_exclude to Vec<&str> for easier comparison
+        let src_only: Vec<&str> = self.src_only.iter().map(AsRef::as_ref).collect();
+        let src_exclude: Vec<&str> = self.src_exclude.iter().map(AsRef::as_ref).collect();
+
+        // Iterate over all entrys
         for entry in src_entries {
             let entry = entry.unwrap();
             let path = entry.path().to_str().unwrap().to_string().replace("\\", "/");
+
+            // Inclusion logic: Check if the path is in src_only
+            let include = if !src_only.is_empty() {
+                src_only.iter().any(|&included| path.contains(included))
+            } else {
+                true // If src_only is empty, include all
+            };
+            if !include {
+                log(LogLevel::Debug, &format!("Excluding (not in src_only): {}", path));
+                continue;
+            }
+
+            // Exclusion logic: Check if the path is in src_exclude
+            let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
+            if exclude {
+                log(LogLevel::Debug, &format!("Excluding (in src_exclude): {}", path));
+                continue;
+            }
+
             if entry.path().is_dir() {
-                let skip_dir = src_exclude.iter().any(|&excluded| path.contains(excluded));
-                if skip_dir {
-                    log(LogLevel::Debug, &format!("Skipping directory: {}", path));
-                    src_exclude.retain(|&excluded| !path.contains(excluded));
-                    continue;
-                }
-                let mut dir_src_names = TargetConfig::get_src_names(&path, src_exclude);
-                src_names.append(&mut dir_src_names);
+                src_names.append(&mut self.get_src_names(&path));
             } else if entry.path().is_file() {
-                let skip_file = src_exclude.iter().any(|&excluded| path.ends_with(excluded));
-                if skip_file {
-                    log(LogLevel::Debug, &format!("Skipping file: {}", path));
-                    src_exclude.retain(|&excluded| !path.ends_with(excluded));
-                    continue;
-                }
                 if !path.ends_with(".cpp") && !path.ends_with(".c") {
                     continue;
                 }
@@ -303,6 +315,7 @@ impl TargetConfig {
                 src_names.push(file_path_str.to_string());
             }
         }
+
         src_names
     }
     
@@ -360,7 +373,15 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         std::process::exit(1);
     });
 
-    // Parse build
+    let build_config = parse_build_config(&config);
+    let os_config = parse_os_config(&config, &build_config);
+    let targets = parse_targets(&config, check_dup_src);
+
+    (build_config, os_config, targets)
+}
+
+/// Parses the build configuration
+fn parse_build_config(config: &Table) -> BuildConfig {
     let build = config["build"].as_table().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find build in config file");
         std::process::exit(1);
@@ -376,11 +397,13 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }).to_string()
         )
     );
-
     let packages = parse_cfg_vector(build, "packages");
-    let build_config = BuildConfig {compiler, packages};
 
-    // Parse os (optional)
+    BuildConfig {compiler, packages}
+}
+
+/// Parses the OS configuration
+fn parse_os_config(config: &Table, build_config: &BuildConfig) -> OSConfig {
     let empty_os = Value::Table(toml::map::Map::default());
     let os = config.get("os").unwrap_or(&empty_os);
     let os_config: OSConfig;
@@ -402,7 +425,10 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }
             // Parse platform (if empty, it is the default value)
             let platform = parse_platform(&os_table);
-            *build_config.compiler.write().unwrap() = format!("{}{}", platform.cross_compile, *build_config.compiler.read().unwrap());
+            let current_compiler = build_config.compiler.read().unwrap();
+            let new_compiler = format!("{}{}", platform.cross_compile, *current_compiler);
+            drop(current_compiler);
+            *build_config.compiler.write().unwrap() = new_compiler;
             os_config = OSConfig {name, features, ulib, platform};
         } else {
             log(LogLevel::Error, "OS is not a table");
@@ -412,8 +438,12 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         os_config = OSConfig::default();
     }
 
-    // Parse multiple targets
-    let mut tgt = Vec::new();
+    os_config
+}
+
+/// Parses the targets configuration
+fn parse_targets(config: &Table, check_dup_src: bool) -> Vec<TargetConfig> {
+    let mut tgts = Vec::new();
     let targets = config["targets"].as_array().unwrap_or_else(|| {
         log(LogLevel::Error, "Could not find targets in config file");
         std::process::exit(1);
@@ -426,8 +456,8 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         // include_dir is compatible with both string and vector types
         let include_dir = if let Some(value) = target_tb.get("include_dir") {
             match value {
-                toml::Value::String(_s) => vec![parse_cfg_string(target_tb, "include_dir", "./")],
-                toml::Value::Array(_arr) => parse_cfg_vector(target_tb, "include_dir"),
+                Value::String(_s) => vec![parse_cfg_string(target_tb, "include_dir", "./")],
+                Value::Array(_arr) => parse_cfg_vector(target_tb, "include_dir"),
                 _ => {
                     log(LogLevel::Error, "Invalid include_dir field");
                     std::process::exit(1);
@@ -439,7 +469,8 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
         let target_config = TargetConfig {
             name: parse_cfg_string(target_tb, "name", ""),
             src: parse_cfg_string(target_tb, "src", ""),
-            src_excluded: parse_cfg_vector(target_tb, "src_excluded"),
+            src_only: parse_cfg_vector(target_tb, "src_only"),
+            src_exclude: parse_cfg_vector(target_tb, "src_exclude"),
             include_dir,
             typ: parse_cfg_string(target_tb, "type", ""),
             cflags: parse_cfg_string(target_tb, "cflags", ""),
@@ -453,28 +484,27 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             log(LogLevel::Error, "Type must be exe, dll, object or static");
             std::process::exit(1);
         }
-        tgt.push(target_config);
+        tgts.push(target_config);
     }
-    if tgt.is_empty() {
+    if tgts.is_empty() {
         log(LogLevel::Error, "No targets found");
         std::process::exit(1);
     }
 
-    // Check for duplicate target names
-    for i in 0..tgt.len() - 1 {
-        for j in i + 1..tgt.len() {
-            if tgt[i].name == tgt[j].name {
-                log(LogLevel::Error, &format!("Duplicate target names found: {}", tgt[i].name));
+    // Checks for duplicate target names
+    for i in 0..tgts.len() - 1 {
+        for j in i + 1..tgts.len() {
+            if tgts[i].name == tgts[j].name {
+                log(LogLevel::Error, &format!("Duplicate target names found: {}", tgts[i].name));
                 std::process::exit(1);
             }
         }
     }
 
-    // Check duplicate srcs in target(no remove)
+    // Checks for duplicate srcs in the target
     if check_dup_src {
-        for target in &tgt {
-            let mut src_exclude:Vec<&str> = target.src_excluded.iter().map(|s| s.as_str()).collect();
-            let mut src_file_names = TargetConfig::get_src_names(&target.src, &mut src_exclude);
+        for target in &tgts {
+            let mut src_file_names = target.get_src_names(&target.src);
             src_file_names.sort();
             if !src_file_names.is_empty() {
                 for i in 0..src_file_names.len() - 1 {
@@ -490,12 +520,12 @@ pub fn parse_config(path: &str, check_dup_src: bool) -> (BuildConfig, OSConfig, 
             }
         }
     }
-    let tgt_arranged = TargetConfig::arrange_targets(tgt);
+    let tgts_arranged = TargetConfig::arrange_targets(tgts);
 
-    (build_config, os_config, tgt_arranged)
+    tgts_arranged
 }
 
-/// Parse platform config
+/// Parses the platform configuration
 fn parse_platform(config: &Table) -> PlatformConfig {
     let empty_platform = Value::Table(toml::map::Map::default());
     let platform = config.get("platform").unwrap_or(&empty_platform);
@@ -531,7 +561,7 @@ fn parse_platform(config: &Table) -> PlatformConfig {
     } 
 }
 
-/// Parse qemu config
+/// Parses the qemu configuration
 fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
     let empty_qemu = Value::Table(toml::map::Map::default());
     let qemu = config.get("qemu").unwrap_or(&empty_qemu);
@@ -577,7 +607,7 @@ fn parse_qemu(arch: &str, config: &Table) -> QemuConfig {
     }
 }
 
-/// Parse the configuration field of the string type
+/// Parses the configuration field of the string type
 fn parse_cfg_string(config: &Table, field: &str, default: &str) -> String {
     let default_string = Value::String(default.to_string());
     config.get(field)
@@ -590,7 +620,7 @@ fn parse_cfg_string(config: &Table, field: &str, default: &str) -> String {
         .to_string()
 }
 
-/// Parse the configuration field of the vector type
+/// Parses the configuration field of the vector type
 fn parse_cfg_vector(config: &Table, field: &str) -> Vec<String> {
     let empty_vector = Value::Array(Vec::new());
     config.get(field)

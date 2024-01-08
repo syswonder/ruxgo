@@ -4,7 +4,7 @@ compiler = "gcc"
 [[targets]]
 name = "local_iperf"
 src = "./src"
-src_excluded = ["t_timer.c","t_units.c","t_uuid.c"]
+src_exclude = ["t_timer.c","t_units.c","t_uuid.c"]
 include_dir = "./src"
 type = "exe"
 cflags = "-DHAVE_CONFIG_H -g -O2 -Wall"

@@ -23,7 +23,7 @@ v9p_path = "./"
 [[targets]]
 name = "libhiredis"
 src = "redis-7.0.12/deps/hiredis"
-src_excluded = ["/examples","/fuzzing","/test.c","/ssl.c","/dict.c"]
+src_exclude = ["/examples","/fuzzing","/test.c","/ssl.c","/dict.c"]
 include_dir = "redis-7.0.12/deps/hiredis"
 type = "static"
 cflags = "-std=c99 -c -O3 -fPIC -Wno-format -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb -pedantic"
@@ -33,7 +33,7 @@ ldflags = "rcs"
 [[targets]]
 name = "liblua"
 src = "redis-7.0.12/deps/lua/src"
-src_excluded = ["/luac.c","/lua.c","/print.c"]
+src_exclude = ["/luac.c","/lua.c","/print.c"]
 include_dir = "redis-7.0.12/deps/lua/src"
 type = "static"
 cflags = "-DLUA_ANSI -DENABLE_CJSON_GLOBAL -DREDIS_STATIC='' -DLUA_USE_MKSTEMP -Wno-format"
@@ -52,7 +52,7 @@ ldflags = "rcs"
 [[targets]]
 name = "libredis_server"
 src = "redis-7.0.12/src"
-src_excluded = ["/modules","/redis-benchmark.c","/ae_evport.c","/ae_epoll.c","/cli_common.c","/redis-cli.c","/ae_select.c","/ae_kqueue.c","/redisassert.c"]
+src_exclude = ["/modules","/redis-benchmark.c","/ae_evport.c","/ae_epoll.c","/cli_common.c","/redis-cli.c","/ae_select.c","/ae_kqueue.c","/redisassert.c"]
 include_dir = "redis-7.0.12/src"
 type = "object"
 cflags = "-pedantic -DREDIS_STATIC='' -std=c99 -W -Wno-missing-field-initializers -O2 -g -ggdb -Wno-format -MMD"
