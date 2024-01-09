@@ -1025,7 +1025,6 @@ dependencies = [
  "directories",
  "indicatif",
  "itertools",
- "num_cpus",
  "rayon",
  "reqwest",
  "serde",

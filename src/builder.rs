@@ -20,13 +20,15 @@ static BUILD_DIR: &str = "ruxos_bld/bin";
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
+
 // ruxlibc info
 static RUXLIBC_INC: &str = "../../../ulib/ruxlibc/include";
-static RUXLIBC_C_LIB: &str = "ruxos_bld/bin/libc.a";
+static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
 static RUXLIBC_RUST_LIB: &str = "libruxlibc.a";
+
 // ruxmusl info
 static RUXMUSL_INC: &str = "ruxos_bld/ruxmusl/install/include";
-static RUXMUSL_C_LIB: &str = "ruxos_bld/ruxmusl/install/lib/libc.a";
+static RUXMUSL_BIN: &str = "ruxos_bld/ruxmusl/install/lib/libc.a";
 static RUXMUSL_RUST_LIB: &str = "libruxmusl.a";
 
 /// Represents a target
@@ -70,31 +72,25 @@ impl<'a> Target<'a> {
     ) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
-        let mut bin_path = String::new();
-        bin_path.push_str(BUILD_DIR);
-        bin_path.push_str("/");
-        bin_path.push_str(&target_config.name);
+        let mut bin_path = format!("{}/{}", BUILD_DIR, target_config.name);
         let mut elf_path = String::new();
         #[cfg(target_os = "windows")]
-        if target_config.typ == "exe" {
-            bin_path.push_str(".exe");
-        } else if target_config.typ == "dll" {
-            bin_path.push_str(".dll");
-        }
-        else if target_config.typ == "static" {
-            bin_path.push_str(".lib");
+        match target_config.typ.as_str() {
+            "exe" => bin_path.push_str(".exe"),
+            "dll" => bin_path.push_str(".dll"),
+            "static" => bin_path.push_str(".lib"),
+            _ => (),
         }
         #[cfg(target_os = "linux")]
-        if target_config.typ == "exe" {
-            elf_path = bin_path.clone();
-            bin_path.push_str(".bin");
-            elf_path.push_str(".elf");
-        } else if target_config.typ == "dll" {
-            bin_path.push_str(".so");
-        } else if target_config.typ == "static" {
-            bin_path.push_str(".a");
-        } else if target_config.typ == "object" {
-            bin_path.push_str(".o");
+        match target_config.typ.as_str() {
+            "exe" => {
+                elf_path = format!("{}.elf", bin_path);
+                bin_path.push_str(".bin");
+            },
+            "dll" => bin_path.push_str(".so"),
+            "static" => bin_path.push_str(".a"),
+            "object" => bin_path.push_str(".o"),
+            _ => (),
         }
         #[cfg(target_os = "windows")]
         let hash_file_path = format!("ruxos_bld/{}.win32.hash", &target_config.name);
@@ -468,13 +464,13 @@ impl<'a> Target<'a> {
             // link ulib and os
             if self.os_config.ulib == "ruxlibc" {
                 cmd.push_str(" ");
-                cmd.push_str(RUXLIBC_C_LIB);
+                cmd.push_str(RUXLIBC_BIN);
                 cmd.push_str(" ");
                 cmd.push_str(&format!("{}/target/{}/{}/{}",
                             ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
             } else if self.os_config.ulib == "ruxmusl" {
                 cmd.push_str(" ");
-                cmd.push_str(RUXMUSL_C_LIB);
+                cmd.push_str(RUXMUSL_BIN);
                 cmd.push_str(" ");
                 cmd.push_str(&format!("{}/target/{}/{}/{}",
                             ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));

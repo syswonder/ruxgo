@@ -1,3 +1,5 @@
+//! This module contains code that handles various CLI flags
+
 use crate::builder::Target;
 use crate::global_cfg::GlobalConfig;
 use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, QemuConfig, Package, log, LogLevel};
@@ -6,7 +8,6 @@ use std::path::Path;
 use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
-extern crate num_cpus;
 
 static ROOT_DIR: &str = "ruxos_bld";
 static BUILD_DIR: &str = "ruxos_bld/bin";
@@ -16,6 +17,11 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 static TARGET_DIR: &str = "ruxos_bld/target";
 static PACKAGES_DIR: &str = "ruxos_bld/packages";
+
+// ruxlibc info
+static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
+static RUXLIBC_HASH_PATH: &str = "ruxos_bld/libc.linux.hash";
+
 // ruxmusl info
 static RUXMUSL_DIR: &str = "ruxos_bld/ruxmusl";
 static ULIB_RUXMUSL: &str = "../../../ulib/ruxmusl";
@@ -28,104 +34,76 @@ static ULIB_RUXMUSL_SRC: &str = "../../../ulib/ruxmusl/musl-1.2.3";
 /// * `packages` - A vector of packages to clean
 /// * `choices` - A vector of choices to select which components to delete
 pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>, choices: Vec<String>) {
-    if Path::new(ROOT_DIR).exists() {
-        fs::create_dir_all(ROOT_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not remove binary directory: {}", why));
-        });
-    }
-
-    // removes os if choice includes "OS" or choice includes "All"
-    if choices.contains(&String::from("OS")) || choices.contains(&String::from("All")) {
-        if Path::new(TARGET_DIR).exists() {
-            log(LogLevel::Log, &format!("Cleaning: {}", TARGET_DIR));
-            fs::remove_dir_all(TARGET_DIR).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
-            });
+    // Helper function to remove a directory or a file and log the result
+    let remove_dir = |dir_path: &str| {
+        if Path::new(dir_path).exists() {
+            if let Err(error) = fs::remove_dir_all(dir_path) {
+                log(LogLevel::Error, &format!("Could not remove directory '{}': {}", dir_path, error));
+            } else {
+                log(LogLevel::Log, &format!("Cleaning: {}", dir_path));
+            }
         }
+    };
+    let remove_file = |file_path: &str| {
+        if Path::new(file_path).exists() {
+            if let Err(error) = fs::remove_file(file_path) {
+                log(LogLevel::Error, &format!("Could not remove file '{}': {}", file_path, error));
+            } else {
+                if file_path.ends_with(".hash") {
+                    log(LogLevel::Info, &format!("Cleaning: {}", file_path));
+                } else {
+                    log(LogLevel::Log, &format!("Cleaning: {}", file_path));
+                }
+            }
+        }
+    };
+
+    // Removes os if choices includes "OS" or choices includes "All"
+    if choices.contains(&String::from("OS")) || choices.contains(&String::from("All")) {
+        remove_dir(TARGET_DIR);
     }
 
-    // removes ulib if choice includes "Ulib" or choice includes "All"
+    // Removes ulib if choices includes "Ulib" or choices includes "All"
     if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
         if os_config.ulib == "ruxlibc" {
-            let libc_hash_pash = "ruxos_bld/libc.linux.hash";
-            if Path::new(libc_hash_pash).exists() {
-                fs::remove_file(libc_hash_pash).unwrap_or_else(|why| {
-                    log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
-                });
-                log(LogLevel::Info, &format!("Cleaning: {}", libc_hash_pash));
-            }
-            if Path::new(BUILD_DIR).exists() {
-                let mut ulib_bin_name = String::from("");
-                if os_config.ulib == "ruxlibc" {
-                    ulib_bin_name = format!("{}/libc.a", BUILD_DIR);
-                }
-                if Path::new(&ulib_bin_name).exists() {
-                    fs::remove_file(&ulib_bin_name).unwrap_or_else(|why| {
-                        log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
-                    });
-                    log(LogLevel::Log, &format!("Cleaning: {}", &ulib_bin_name));
-                }
-            }
+            remove_file(RUXLIBC_HASH_PATH);
+            remove_file(RUXLIBC_BIN);
         } else if os_config.ulib == "ruxmusl" {
-            if Path::new(RUXMUSL_DIR).exists() {
-                log(LogLevel::Log, &format!("Cleaning: {}", RUXMUSL_DIR));
-                fs::remove_dir_all(RUXMUSL_DIR).unwrap_or_else(|why| {
-                    log(LogLevel::Error, &format!("Could not remove target directory: {}", why));
-                });
-            }
+            remove_dir(RUXMUSL_DIR);
         }
     }
 
-    // removes bins of targets if choice includes "App_libs" or choice includes "All"
-    if choices.contains(&String::from("App_libs")) || choices.contains(&String::from("All")) {
+    // Removes bins of targets if choices includes "App_bins" or choices includes "All"
+    if choices.contains(&String::from("App_bins")) || choices.contains(&String::from("All")) {
         // removes local bins of targets
         for target in targets {
             #[cfg(target_os = "windows")]
             let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
             #[cfg(target_os = "linux")]
             let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
-            if Path::new(&hash_path).exists() {
-                log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
-                fs::remove_file(&hash_path).unwrap_or_else(|why| {
-                    log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
-                });
-            }
+            remove_file(&hash_path);
             if Path::new(BUILD_DIR).exists() {
-                let mut bin_name = String::new();
+                let mut bin_name = format!("{}/{}", BUILD_DIR, target.name);
                 let mut elf_name = String::new();
-                bin_name.push_str(BUILD_DIR);
-                bin_name.push_str("/");
-                bin_name.push_str(&target.name);
                 #[cfg(target_os = "windows")]
-                if target.typ == "exe" {
-                    bin_name.push_str(".exe");
-                } else if target.typ == "dll" {
-                    bin_name.push_str(".dll");
+                match target.typ.as_str() {
+                    "exe" => bin_name.push_str(".exe"),
+                    "dll" => bin_name.push_str(".dll"),
+                    _ => (),
                 }
                 #[cfg(target_os = "linux")]
-                if target.typ == "exe" {
-                    elf_name = bin_name.clone();
-                    bin_name.push_str(".bin");
-                    elf_name.push_str(".elf");
-                } else if target.typ == "dll" {
-                    bin_name.push_str(".so");
-                } else if target.typ == "static" {
-                    bin_name.push_str(".a");
-                } else if target.typ == "object" {
-                    bin_name.push_str(".o");
+                match target.typ.as_str() {
+                    "exe" => {
+                        elf_name = format!("{}.elf", bin_name);
+                        bin_name.push_str(".bin");
+                    },
+                    "dll" => bin_name.push_str(".so"),
+                    "static" => bin_name.push_str(".a"),
+                    "object" => bin_name.push_str(".o"),
+                    _ => (),
                 }
-                if Path::new(&bin_name).exists() {
-                    log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
-                    fs::remove_file(&bin_name).unwrap_or_else(|why| {
-                        log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
-                    });
-                }
-                if Path::new(&elf_name).exists() {
-                    log(LogLevel::Log, &format!("Cleaning: {}", &elf_name));
-                    fs::remove_file(&elf_name).unwrap_or_else(|why| {
-                        log(LogLevel::Error, &format!("Could not remove ELF file: {}", why));
-                    });
-                }
+                remove_file(&bin_name);
+                remove_file(&elf_name);
             }
         }
         // removes bins of packages if have
@@ -135,58 +113,35 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                 let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
                 #[cfg(target_os = "linux")]
                 let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
-                if Path::new(&hash_path).exists() {
-                    log(LogLevel::Info, &format!("Cleaning: {}", &hash_path));
-                    fs::remove_file(&hash_path).unwrap_or_else(|why| {
-                        log(LogLevel::Error, &format!("Could not remove hash file: {}", why));
-                    });
-                }
+                remove_file(&hash_path);
                 if Path::new(BUILD_DIR).exists() {
-                    let mut bin_name = String::new();
-                    bin_name.push_str(BUILD_DIR);
-                    bin_name.push_str("/");
-                    bin_name.push_str(&target.name);
+                    let mut bin_name = format!("{}/{}", BUILD_DIR, target.name);
                     #[cfg(target_os = "windows")]
-                    if target.typ == "dll" {
-                        bin_name.push_str(".dll");
+                    match target.typ.as_str() {
+                        "dll" => bin_name.push_str(".dll"),
+                        _ => (),
                     }
                     #[cfg(target_os = "linux")]
-                    if target.typ == "dll" {
-                        bin_name.push_str(".so");
-                    } else if target.typ == "static" {
-                        bin_name.push_str(".a");
-                    } else if target.typ == "object" {
-                        bin_name.push_str(".o");
+                    match target.typ.as_str() {
+                        "dll" => bin_name.push_str(".so"),
+                        "static" => bin_name.push_str(".a"),
+                        "object" => bin_name.push_str(".o"),
+                        _ => (),
                     }
-                    if Path::new(&bin_name).exists() {
-                        log(LogLevel::Log, &format!("Cleaning: {}", &bin_name));
-                        fs::remove_file(&bin_name).unwrap_or_else(|why| {
-                            log(LogLevel::Error, &format!("Could not remove binary file: {}", why));
-                        });
-                    }
+                    remove_file(&bin_name);
                 }
             }
         }
     }
 
-    // removes obj if choice includes "Obj" or choice includes "All"
+    // Removes obj if choices includes "Obj" or choices includes "All"
     if choices.contains(&String::from("Obj")) || choices.contains(&String::from("All")) {
-        if Path::new(OBJ_DIR).exists() {
-            log(LogLevel::Log, &format!("Cleaning: {}", OBJ_DIR));
-            fs::remove_dir_all(OBJ_DIR).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not remove object directory: {}", why));
-            });
-        }
+        remove_dir(OBJ_DIR);
     }
 
-    // removes downloaded packages if choice includes "Packages" or choice includes "All"
+    // Removes downloaded packages if choices includes "Packages" or choices includes "All"
     if choices.contains(&String::from("Packages")) || choices.contains(&String::from("All")) {
-        if Path::new(PACKAGES_DIR).exists() {
-            log(LogLevel::Log, &format!("Cleaning: {}", PACKAGES_DIR));
-            fs::remove_dir_all(PACKAGES_DIR).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Could not remove packages directory: {}", why));
-            });
-        }
+        remove_dir(PACKAGES_DIR);
     }
 }
 
@@ -396,12 +351,16 @@ pub fn build(
 }
 
 /// Builds the specified os
+/// # Arguments
+/// * `os_config` - The os configuration
+/// * `ulib` - The user library, `ruxlibc` or `ruxmusl`
+/// * `rux_feats` - Features to be enabled for Ruxos modules (crate `ruxfeat`)
+/// * `lib_feats` - Features to be enabled for the user library (crate `ruxlibc`, `ruxmusl`)
 fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats: &Vec<String>) {
     let target = format!("--target {}", os_config.platform.target);
-    let target_dir = format!("--target-dir {}/target", ROOT_DIR);
+    let target_dir = format!("--target-dir {}", TARGET_DIR);
     let mode = format!("--{}", os_config.platform.mode);
     let os_ulib = format!("-p {}", ulib);
-    // add verbose
     let verbose = match os_config.platform.v.as_str() {
         "1" => "-v",
         "2" => "-vv",
@@ -409,13 +368,11 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
     };
     // add features
     let features = [&rux_feats[..], &lib_feats[..]].concat().join(" ");
-    // number of parallel jobs
-    let num_cores = num_cpus::get();
-    log(LogLevel::Debug, &format!("Num_cores: {}", num_cores));
+
     // cmd
     let cmd = format!(
-        "cargo build {} {} {} {} {} --features \"{}\" -j {}",
-        target, target_dir, mode, os_ulib, verbose, features, num_cores
+        "cargo build {} {} {} {} {} --features \"{}\"",
+        target, target_dir, mode, os_ulib, verbose, features
     );
     log(LogLevel::Info, &format!("Command: {}", cmd));
     let output = Command::new("sh")
@@ -433,6 +390,10 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
 } 
 
 /// Builds the ruxlibc
+/// # Arguments
+/// * `os_config` - The os configuration
+/// * `build_config` - The local build configuration
+/// * `gen_cc` - Whether to generate a compile_commands.json file
 fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) {
     if !Path::new(BUILD_DIR).exists() {
         fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
@@ -460,6 +421,9 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
 }
 
 /// Builds the ruxmusl
+/// # Arguments
+/// * `os_config` - The os configuration
+/// * `build_config` - The local build configuration
 fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
     if !Path::new(RUXMUSL_DIR).exists() {
         // download ruxmusl
@@ -560,7 +524,7 @@ pub fn run (
                 make_disk_image_fat32(&os_config.platform.qemu.disk_img);
             }
         }
-        // enable qemu gdb guest if need
+        // enable qemu gdb guest if needed
         if &os_config.platform.qemu.debug == "y" {
             run_qemu_debug(qemu_args_debug, bin_args);
         } else if &os_config.platform.qemu.debug == "n" {
@@ -890,6 +854,7 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
     log(LogLevel::Log, &format!("Project {} initialised", project_name));
 }
 
+/// Parses the config file of local project
 pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>) {
     #[cfg(target_os = "linux")]
     let (build_config, os_config, targets) = utils::parse_config("./config_linux.toml", true);

@@ -208,7 +208,7 @@ license = "NONE"
     // If clean flag is provided, prompt user for choices
     if args.clean {
         let (_, os_config, targets, packages) = commands::parse_config();
-        let mut items = vec!["All", "App_libs", "Obj"];
+        let mut items = vec!["All", "App_bins", "Obj"];
         if os_config != OSConfig::default() {
             items.push("OS");
             if !os_config.ulib.is_empty() {

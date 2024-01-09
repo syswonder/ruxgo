@@ -8,7 +8,7 @@
 
 /// Contains code to build projects
 pub mod builder;
-/// Contains code that handles various binary flags
+/// Contains code that handles various CLI flags
 pub mod commands;
 /// Contains logger, config parser and environment config
 pub mod utils;
