@@ -9,8 +9,8 @@ use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
 
-static ROOT_DIR: &str = "ruxos_bld";
-static BUILD_DIR: &str = "ruxos_bld/bin";
+static BUILD_DIR: &str = "ruxos_bld";
+static BIN_DIR: &str = "ruxos_bld/bin";
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
@@ -21,11 +21,32 @@ static PACKAGES_DIR: &str = "ruxos_bld/packages";
 // ruxlibc info
 static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
 static RUXLIBC_HASH_PATH: &str = "ruxos_bld/libc.linux.hash";
+lazy_static! {
+    static ref RUXLIBC_SRC: String = {
+        let path1 = "../ruxos/ulib/ruxlibc/c";
+        let path2 = "../../../ulib/ruxlibc/c";
+        if Path::new(path1).exists() {
+            String::from(path1)
+        } else {
+            String::from(path2)
+        }
+    };
+}
 
 // ruxmusl info
 static RUXMUSL_DIR: &str = "ruxos_bld/ruxmusl";
-static ULIB_RUXMUSL: &str = "../../../ulib/ruxmusl";
-static ULIB_RUXMUSL_SRC: &str = "../../../ulib/ruxmusl/musl-1.2.3";
+lazy_static! {
+    static ref ULIB_RUXMUSL: String = {
+        let path1 = "../ruxos/ulib/ruxmusl";
+        let path2 = "../../../ulib/ruxmusl";
+        if Path::new(path1).exists() {
+            String::from(path1)
+        } else {
+            String::from(path2)
+        }
+    };
+    static ref ULIB_RUXMUSL_SRC: String = format!("{}/musl-1.2.3", *ULIB_RUXMUSL);
+}
 
 /// Cleans the local targets
 /// # Arguments
@@ -82,8 +103,8 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
             #[cfg(target_os = "linux")]
             let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
             remove_file(&hash_path);
-            if Path::new(BUILD_DIR).exists() {
-                let mut bin_name = format!("{}/{}", BUILD_DIR, target.name);
+            if Path::new(BIN_DIR).exists() {
+                let mut bin_name = format!("{}/{}", BIN_DIR, target.name);
                 let mut elf_name = String::new();
                 #[cfg(target_os = "windows")]
                 match target.typ.as_str() {
@@ -114,8 +135,8 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                 #[cfg(target_os = "linux")]
                 let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
                 remove_file(&hash_path);
-                if Path::new(BUILD_DIR).exists() {
-                    let mut bin_name = format!("{}/{}", BUILD_DIR, target.name);
+                if Path::new(BIN_DIR).exists() {
+                    let mut bin_name = format!("{}/{}", BIN_DIR, target.name);
                     #[cfg(target_os = "windows")]
                     match target.typ.as_str() {
                         "dll" => bin_name.push_str(".dll"),
@@ -143,6 +164,11 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
     if choices.contains(&String::from("Packages")) || choices.contains(&String::from("All")) {
         remove_dir(PACKAGES_DIR);
     }
+
+    // Removes all if choices includes "All"
+    if choices.contains(&String::from("All")) {
+        remove_dir(BUILD_DIR);
+    }
 }
 
 /// Builds all targets
@@ -161,8 +187,8 @@ pub fn build(
     gen_vsc: bool, 
     packages: &Vec<Package>
 ) {
-    if !Path::new(ROOT_DIR).exists() {
-        fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
+    if !Path::new(BUILD_DIR).exists() {
+        fs::create_dir(BUILD_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Could not create ruxos_bld directory: {}", why));
             std::process::exit(1);
         });
@@ -296,37 +322,19 @@ pub fn build(
         });
     }
     
-    // Construct os and ulib
+    // Constructs os and ulib
     if os_config != &OSConfig::default() {
         log(LogLevel::Log, &format!("Compiling OS: {}, Ulib: {} ", os_config.name, os_config.ulib));
         let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-
-        // thread os
-        let os_config_clone = os_config.clone();
-        let rux_feats_final_clone = rux_feats_final.clone();
-        let lib_feats_final_clone = lib_feats_final.clone();
-        let thread_os = std::thread::spawn(move || {
-            build_os(&os_config_clone, &os_config_clone.ulib, &rux_feats_final_clone, &lib_feats_final_clone);
-        });
-
-        // thread ulib
-        let build_config_clone = build_config.clone();
-        let os_config_clone_ = os_config.clone();
-        let gen_cc_clone = gen_cc.clone();
-        let thread_ulib = std::thread::spawn(move || {
-            if os_config_clone_.ulib == "ruxlibc" {
-                build_ruxlibc(&build_config_clone, &os_config_clone_, gen_cc_clone);
-            } else if os_config_clone_.ulib == "ruxmusl" {
-                build_ruxmusl(&build_config_clone, &os_config_clone_);
-            }
-        });
-
-        // join thread
-        thread_os.join().expect("Thread OS panicked");
-        thread_ulib.join().expect("Thread Ulib panicked");
+        build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
+        if os_config.ulib == "ruxlibc" {
+            build_ruxlibc(build_config, os_config, gen_cc);
+        } else if os_config.ulib == "ruxmusl" {
+            build_ruxmusl(build_config, os_config);
+        }
     };
 
-    // Construct each target separately
+    // Constructs each target separately
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets, packages);
         tgt.build(gen_cc);
@@ -357,8 +365,17 @@ pub fn build(
 /// * `rux_feats` - Features to be enabled for Ruxos modules (crate `ruxfeat`)
 /// * `lib_feats` - Features to be enabled for the user library (crate `ruxlibc`, `ruxmusl`)
 fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats: &Vec<String>) {
+    let current_dir = std::env::current_dir().unwrap();
+    let target_dir_path = current_dir.join(TARGET_DIR);
+    let target_dir = format!("--target-dir {}", target_dir_path.to_str().unwrap());
+
+    // Checks if the ruxos directory exists and change to it if it does
+    let ruxos_dir = Path::new("../ruxos");
+    if ruxos_dir.exists() {
+        std::env::set_current_dir(&ruxos_dir).unwrap();
+    }
+
     let target = format!("--target {}", os_config.platform.target);
-    let target_dir = format!("--target-dir {}", TARGET_DIR);
     let mode = format!("--{}", os_config.platform.mode);
     let os_ulib = format!("-p {}", ulib);
     let verbose = match os_config.platform.v.as_str() {
@@ -366,7 +383,6 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
         "2" => "-vv",
         _ => "",
     };
-    // add features
     let features = [&rux_feats[..], &lib_feats[..]].concat().join(" ");
 
     // cmd
@@ -387,6 +403,9 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
         log(LogLevel::Error, &format!("Command execution failed: {:?}", output.stderr));
         std::process::exit(1);
     }
+
+    // Changes the current directory back to the original directory
+    std::env::set_current_dir(current_dir).unwrap();
 } 
 
 /// Builds the ruxlibc
@@ -395,15 +414,15 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &Vec<String>, lib_feats
 /// * `build_config` - The local build configuration
 /// * `gen_cc` - Whether to generate a compile_commands.json file
 fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool) {
-    if !Path::new(BUILD_DIR).exists() {
-        fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
+    if !Path::new(BIN_DIR).exists() {
+        fs::create_dir_all(BIN_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
             std::process::exit(1);
         })
     }
     let ulib_tgt = TargetConfig {
         name: "libc".to_string(),
-        src: format!("../../../ulib/ruxlibc/c"),
+        src: RUXLIBC_SRC.to_string(),
         src_only: Vec::new(),
         src_exclude: Vec::new(),
         include_dir: Vec::new(),    // this is empty to avoid repetition at src build
@@ -427,18 +446,18 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
 fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
     if !Path::new(RUXMUSL_DIR).exists() {
         // download ruxmusl
-        if !Path::new(ULIB_RUXMUSL_SRC).exists() {
+        if !Path::new(&*ULIB_RUXMUSL_SRC).exists() {
             log(LogLevel::Info, "Downloading musl-1.2.3 source code");
             Command::new("wget")
-                .args(&["https://musl.libc.org/releases/musl-1.2.3.tar.gz", "-P", ULIB_RUXMUSL])
+                .args(&["https://musl.libc.org/releases/musl-1.2.3.tar.gz", "-P", ULIB_RUXMUSL.as_str()])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("tar")
-                .args(&["-zxf", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL), "-C", ULIB_RUXMUSL])
+                .args(&["-zxf", &format!("{}/musl-1.2.3.tar.gz", *ULIB_RUXMUSL), "-C", ULIB_RUXMUSL.as_str()])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
             Command::new("rm")
-                .args(&["-f", &format!("{}/musl-1.2.3.tar.gz", ULIB_RUXMUSL)])
+                .args(&["-f", &format!("{}/musl-1.2.3.tar.gz", *ULIB_RUXMUSL)])
                 .spawn().expect("Failed to execute command")
                 .wait().expect("Failed to wait for command");
         }
@@ -451,7 +470,7 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
 
         // config ruxmusl to generate makefile
         let current_dir = std::env::current_dir().expect("Failed to get current directory");
-        let ruxmusl_abs_path = current_dir.join(ULIB_RUXMUSL_SRC);
+        let ruxmusl_abs_path = current_dir.join(ULIB_RUXMUSL_SRC.as_str());
         let ruxmusl_abs_path_str = ruxmusl_abs_path.to_str().expect("Failed to convert path to string");
         let cmd = format!(
             "{}/configure --prefix=./install --exec-prefix=./ --syslibdir=./install/lib --disable-shared ARCH={} CC={}",

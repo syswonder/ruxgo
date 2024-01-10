@@ -14,15 +14,34 @@ use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
 
-static ROOT_DIR: &str = "ruxos_bld";
-static BUILD_DIR: &str = "ruxos_bld/bin";
+static BUILD_DIR: &str = "ruxos_bld";
+static BIN_DIR: &str = "ruxos_bld/bin";
 #[cfg(target_os = "windows")]
 static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 
-// ruxlibc info
-static RUXLIBC_INC: &str = "../../../ulib/ruxlibc/include";
+// ruxlibc info and ld script
+lazy_static! {
+    static ref RUXLIBC_INC: String = {
+        let path1 = "../ruxos/ulib/ruxlibc/include";
+        let path2 = "../../../ulib/ruxlibc/include";
+        if Path::new(path1).exists() {
+            String::from(path1)
+        } else {
+            String::from(path2)
+        }
+    };
+    static ref LD_SCRIPT: String = {
+        let path1 = "../ruxos/modules/ruxhal";
+        let path2 = "../../../modules/ruxhal";
+        if Path::new(path1).exists() {
+            String::from(path1)
+        } else {
+            String::from(path2)
+        }
+    };
+}
 static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
 static RUXLIBC_RUST_LIB: &str = "libruxlibc.a";
 
@@ -72,7 +91,7 @@ impl<'a> Target<'a> {
     ) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
-        let mut bin_path = format!("{}/{}", BUILD_DIR, target_config.name);
+        let mut bin_path = format!("{}/{}", BIN_DIR, target_config.name);
         let mut elf_path = String::new();
         #[cfg(target_os = "windows")]
         match target_config.typ.as_str() {
@@ -170,12 +189,6 @@ impl<'a> Target<'a> {
     /// # Arguments
     /// * `gen_cc` - Generate compile_commands.json
     pub fn build(&mut self, gen_cc: bool) {
-        if !Path::new(ROOT_DIR).exists() {
-            std::fs::create_dir(ROOT_DIR).unwrap_or_else(|why| {
-                log(LogLevel::Error, &format!("Couldn't create ruxos_bld directory: {}", why));
-                std::process::exit(1);
-            });
-        }
         // build other lib targets of packages firstly
         for pkg in self.packages {
             for target in &pkg.target_configs {
@@ -294,8 +307,8 @@ impl<'a> Target<'a> {
     /// * `dep_targets` - The targets that this target depends on
     pub fn link(&self, dep_targets: &Vec<Target>) {
         let mut objs = Vec::new();
-        if !Path::new(BUILD_DIR).exists() {
-            fs::create_dir_all(BUILD_DIR).unwrap_or_else(|why| {
+        if !Path::new(BIN_DIR).exists() {
+            fs::create_dir_all(BIN_DIR).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
                 std::process::exit(1);
             }) 
@@ -382,7 +395,7 @@ impl<'a> Target<'a> {
         // add -L library search path
         if self.dependant_libs.len() > 0 {
             cmd.push_str(" -L");
-            cmd.push_str(BUILD_DIR);
+            cmd.push_str(BIN_DIR);
             cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
             cmd.push_str(" ");
         }
@@ -451,7 +464,7 @@ impl<'a> Target<'a> {
             let mut ldflags = String::new();
             let mut os_ldflags = String::new();
             os_ldflags.push_str("-nostdlib -static -no-pie --gc-sections");
-            let ld_script = format!("../../../modules/ruxhal/linker_{}.lds", self.os_config.platform.name);
+            let ld_script = format!("{}/linker_{}.lds", LD_SCRIPT.as_str(), self.os_config.platform.name);
             os_ldflags.push_str(&format!(" -T{}", &ld_script));
             if self.os_config.platform.arch == "x86_64".to_string() {
                 os_ldflags.push_str(" --no-relax");
@@ -467,13 +480,13 @@ impl<'a> Target<'a> {
                 cmd.push_str(RUXLIBC_BIN);
                 cmd.push_str(" ");
                 cmd.push_str(&format!("{}/target/{}/{}/{}",
-                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
+                            BUILD_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXLIBC_RUST_LIB));
             } else if self.os_config.ulib == "ruxmusl" {
                 cmd.push_str(" ");
                 cmd.push_str(RUXMUSL_BIN);
                 cmd.push_str(" ");
                 cmd.push_str(&format!("{}/target/{}/{}/{}",
-                            ROOT_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));
+                            BUILD_DIR, &self.os_config.platform.target, &self.os_config.platform.mode, RUXMUSL_RUST_LIB));
             }
 
             // link other obj
@@ -524,7 +537,7 @@ impl<'a> Target<'a> {
                     cmd.push_str(" ");
                     // added -L library search path
                     cmd.push_str(" -L");
-                    cmd.push_str(BUILD_DIR);
+                    cmd.push_str(BIN_DIR);
                     cmd.push_str(" -Wl,-rpath,\'$ORIGIN\' ");  // '$ORIGIN' represents the directory path where the executable is located
                     cmd.push_str(" ");
                 }
@@ -827,7 +840,7 @@ impl Src {
             os_cflags.push_str("-nostdinc -fno-builtin -ffreestanding -Wall");
             if os_config.ulib == "ruxlibc" {
                 os_cflags.push_str(" -I");
-                os_cflags.push_str(RUXLIBC_INC);
+                os_cflags.push_str(RUXLIBC_INC.as_str());
                 let (_, lib_feats) = cfg_feat(os_config);
                 // generate the preprocessing macro definition
                 for lib_feat in lib_feats {

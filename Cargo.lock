@@ -1025,6 +1025,7 @@ dependencies = [
  "directories",
  "indicatif",
  "itertools",
+ "lazy_static",
  "rayon",
  "reqwest",
  "serde",

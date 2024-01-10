@@ -13,15 +13,13 @@ use serde::{Serialize, Deserialize};
 use std::error::Error;
 
 static PACKAGES_URL: &str = "https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
-static SYSWONDER_URL :&str = "https://github.com/syswonder";
-static BIN_DIR: &str = "ruxos_bld/app-bin";
-static SRC_DIR: &str = "ruxos_bld/app-src";
-static KERNEL_DIR: &str = "ruxos_bld/kernel";
-static SCRIPT_DIR: &str = "ruxos_bld/script";
-static CACHE_DIR: &str = "ruxos_bld/cache";
+static SYSWONDER_URL: &str = "https://github.com/syswonder";
+static PKG_DIR: &str = "ruxos_pkg";
+static BIN_DIR: &str = "ruxos_pkg/app-bin";
+static CACHE_DIR: &str = "ruxos_pkg/cache";
 
 /// Enum describing the Package type
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 enum PackageType {
     AppBin,
@@ -145,11 +143,7 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
         PackageType::AppSrc | PackageType::Kernel => {
             // pull the package from github
             let url = format!("{}/{}", SYSWONDER_URL, pkg_name);
-            let dir = match pkg_info.typ {
-                PackageType::AppSrc => PathBuf::from(SRC_DIR),
-                PackageType::Kernel => PathBuf::from(KERNEL_DIR),
-                _ => unreachable!()
-            };
+            let dir = PathBuf::from(PKG_DIR);
             if !dir.exists() {
                 fs::create_dir_all(&dir)?;
             }
@@ -202,21 +196,21 @@ pub async fn clean_package(pkg_name: &str) -> Result<(), Box<dyn Error>> {
                 fs::remove_file(bin_path)?;
                 log(LogLevel::Log, &format!("Binary package '{}' removed successfully!", pkg_name));
             }
-            let script_path = PathBuf::from(SCRIPT_DIR).join(format!("{}.sh", pkg_name));
+            let script_path = PathBuf::from(BIN_DIR).join(format!("{}.sh", pkg_name));
             if script_path.exists() {
                 fs::remove_file(script_path)?;
                 log(LogLevel::Log, &format!("Script for package '{}' removed successfully!", pkg_name));
             }
         },
         PackageType::AppSrc => {
-            let src_path = PathBuf::from(SRC_DIR).join(pkg_name);
+            let src_path = PathBuf::from(PKG_DIR).join(pkg_name);
             if src_path.exists() {
                 fs::remove_dir_all(src_path)?;
                 log(LogLevel::Log, &format!("Source package '{}' removed successfully!", pkg_name));
             }
         },
         PackageType::Kernel => {
-            let kernel_path = PathBuf::from(KERNEL_DIR).join(pkg_name);
+            let kernel_path = PathBuf::from(PKG_DIR).join(pkg_name);
             if kernel_path.exists() {
                 fs::remove_dir_all(kernel_path)?;
                 log(LogLevel::Log, &format!("Kernel package '{}' removed successfully!", pkg_name));
@@ -233,30 +227,64 @@ pub async fn clean_package(pkg_name: &str) -> Result<(), Box<dyn Error>> {
 /// Cleans all packages
 /// # Arguments
 /// * `choices` - A vector of choices to select which components to delete
-pub fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Error>> {
-    let dirs = vec![
-        ("All", "ruxos_bld"),
-        ("App-bin", "ruxos_bld/app-bin"),
-        ("App-src", "ruxos_bld/app-src"),
-        ("Kernel", "ruxos_bld/kernel"),
-        ("Script", "ruxos_bld/script"),
-        ("Cache", "ruxos_bld/cache"),
-    ];
+pub async fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Error>> {
     for choice in &choices {
-        if let Some((_, dir)) = dirs.iter().find(|(name, _)| name == choice) {
-            let dir_path = Path::new(dir);
-            if dir_path.exists() {
-                log(LogLevel::Log, &format!("Cleaning: {}", dir));
-                fs::remove_dir_all(dir_path)?;
-            }
-        }
-    }
-    if choices.contains(&"All".to_string()) {
-        for (_, dir) in dirs.iter().skip(1) {
-            let dir_path = Path::new(dir);
-            if dir_path.exists() {
-                log(LogLevel::Log, &format!("Cleaning {}", dir));
-                fs::remove_dir_all(dir_path)?;
+        match choice.as_str() {
+            "All" => {
+                let root_dir_path = Path::new(PKG_DIR);
+                if root_dir_path.exists() {
+                    fs::remove_dir_all(root_dir_path)?;
+                    log(LogLevel::Log, &format!("All packages removed successfully!"));
+                }
+            },
+            "App-bin" => {
+                let bin_dir_path = Path::new(BIN_DIR);
+                if bin_dir_path.exists() {
+                    fs::remove_dir_all(bin_dir_path)?;
+                    log(LogLevel::Log, &format!("App-bin packages removed successfully!"));
+                }
+            },
+            "App-src" => {
+                let pkgs = load_or_refresh_packages(false).await?;
+                let root_dir_path = Path::new(PKG_DIR);
+                if root_dir_path.exists() {
+                    for pkg in &pkgs {
+                        if pkg.typ == PackageType::AppSrc {
+                            let src_path = root_dir_path.join(&pkg.name);
+                            if src_path.exists() {
+                                fs::remove_dir_all(src_path)?;
+                                log(LogLevel::Info, &format!("Source package '{}' removed successfully!", pkg.name));
+                            }
+                        }
+                    }
+                    log(LogLevel::Log, "All 'App-src' packages removed successfully!");
+                }
+            },
+            "Kernel" => {
+                let pkgs = load_or_refresh_packages(false).await?;
+                let root_dir_path = Path::new(PKG_DIR);
+                if root_dir_path.exists() {
+                    for pkg in &pkgs {
+                        if pkg.typ == PackageType::Kernel {
+                            let kernel_path = root_dir_path.join(&pkg.name);
+                            if kernel_path.exists() {
+                                fs::remove_dir_all(kernel_path)?;
+                                log(LogLevel::Info, &format!("Kernel package '{}' removed successfully!", pkg.name));
+                            }
+                        }
+                    }
+                    log(LogLevel::Log, "All 'Kernel' packages removed successfully!");
+                }
+            },
+            "Cache" => {
+                let cache_dir_path = Path::new(CACHE_DIR);
+                if cache_dir_path.exists() {
+                    fs::remove_dir_all(cache_dir_path)?;
+                    log(LogLevel::Log, &format!("Cache cleaned successfully!"));
+                }
+            },
+            _ => {
+                log(LogLevel::Error, &format!("Unknown choice: '{}'", choice));
             }
         }
     }
@@ -266,7 +294,7 @@ pub fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Error>> {
 
 /// Pulls the script of the specified app-bin
 async fn pull_script(pkg_name: &str) -> Result<(), Box<dyn Error>> {
-    let script_dir = PathBuf::from(SCRIPT_DIR);
+    let script_dir = PathBuf::from(BIN_DIR);
     if !script_dir.exists() {
         fs::create_dir_all(&script_dir)?;
     }
@@ -295,7 +323,7 @@ async fn pull_script(pkg_name: &str) -> Result<(), Box<dyn Error>> {
 
 /// Runs the specified app-bin
 pub fn run_app(pkg_name: &str) -> Result<(), Box<dyn Error>> {
-    let script_dir = PathBuf::from(SCRIPT_DIR);
+    let script_dir = PathBuf::from(BIN_DIR);
     let mut script_path = script_dir.join(format!("{}.sh", pkg_name));
     // use the default script if the app-bin script does not exist
     if !script_path.exists() {

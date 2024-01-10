@@ -20,3 +20,6 @@ pub mod features;
 pub mod global_cfg;
 /// Contains packages management related functions
 pub mod packages;
+
+#[macro_use]
+extern crate lazy_static;

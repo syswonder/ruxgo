@@ -160,7 +160,7 @@ license = "NONE"
                     packages::clean_package(&pkg_name).await.expect("Failed to clean package");
                 }
                 if clean_all {
-                    let items = vec!["All", "App-bin", "App-src", "Kernel", "Script", "Cache"];
+                    let items = vec!["All", "App-bin", "App-src", "Kernel", "Cache"];
                     let defaults = vec![false; items.len()];
                     let choices = MultiSelect::new()
                         .with_prompt("What parts do you want to clean?")
@@ -173,7 +173,7 @@ license = "NONE"
                         .map(|&index| String::from(items[index]))
                         .collect();
                     utils::log(utils::LogLevel::Log, "Cleaning packages...");
-                    packages::clean_all_packages(choices).expect("Failed to clean choice packages");
+                    packages::clean_all_packages(choices).await.expect("Failed to clean choice packages");
                 }
             }
             Some(Commands::Config { parameter, value }) => {
