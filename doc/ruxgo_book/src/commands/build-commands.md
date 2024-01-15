@@ -1,7 +1,7 @@
 # 构建命令
 
-* [ruxgo build](./ruxgo-build.md)
+* [ruxgo -b](./ruxgo-build.md)
 
-* [ruxgo run](./ruxgo-run.md)
+* [ruxgo -r](./ruxgo-run.md)
 
-* [ruxgo clean](./ruxgo-clean.md)
+* [ruxgo -c](./ruxgo-clean.md)

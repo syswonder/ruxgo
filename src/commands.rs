@@ -714,9 +714,9 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
             std::process::exit(1);
         }
     };
-    let sample_cpp_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nlibs = \"\"\ndeps = [\"\"]\n", cpp_compiler);
+    let sample_cpp_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nldflags = \"\"\ndeps = []\n", cpp_compiler);
 
-    let sample_c_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nlibs = \"\"\ndeps = [\"\"]\n", c_compiler);
+    let sample_c_config = format!("[build]\ncompiler = \"{}\"\n\n[[targets]]\nname = \"main\"\nsrc = \"./src/\"\ninclude_dir = \"./src/include/\"\ntype = \"exe\"\ncflags = \"-g -Wall -Wextra\"\nldflags = \"\"\ndeps = []\n", c_compiler);
 
     let sample_config = match is_c {
         Some(true) => sample_c_config,
@@ -777,9 +777,9 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
             });
 
         let c_sample_program =
-            b"#include <stdio.h>\n\nint main() {\n\tprintf(\"Hello World!\\n\");\n\treturn 0;\n}";
+            b"#include <stdio.h>\n\nint main() {\n\tprintf(\"Here is a Ruxgo example!\\n\");\n\treturn 0;\n}";
         let cpp_sample_program = 
-            b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Hello World!\" << std::endl;\n\treturn 0;\n}";
+            b"#include <iostream>\n\nint main() {\n\tstd::cout << \"Here is a Ruxgo example!\" << std::endl;\n\treturn 0;\n}";
         match is_c {
             Some(true) => main_file.write_all(c_sample_program).unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not write to main.c: {}", why));

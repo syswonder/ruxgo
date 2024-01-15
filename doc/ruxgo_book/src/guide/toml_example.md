@@ -11,7 +11,7 @@ compiler = "gcc"
 [[targets]]
 name = "libsqlite3"
 src = "./sqlite-amalgamation-3410100"
-src_excluded = ["shell.c"]
+src_exclude = ["shell.c"]
 include_dir = "./sqlite-amalgamation-3410100"
 type = "static"
 cflags = "-w -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_FLOATING_POINT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEBUG"
@@ -21,7 +21,7 @@ ldflags = "rcs"
 [[targets]]
 name = "local_sqlite3"
 src = "./"
-src_excluded = ["sqlite-amalgamation-3410100"]
+src_exclude = ["sqlite-amalgamation-3410100"]
 include_dir = "./"
 type = "exe"
 cflags = ""
@@ -53,7 +53,7 @@ graphic = "n"
 [[targets]]
 name = "libsqlite3"
 src = "./sqlite-amalgamation-3410100"
-src_excluded = ["shell.c"]
+src_exclude = ["shell.c"]
 include_dir = "./sqlite-amalgamation-3410100"
 type = "static"
 cflags = "-w -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_FLOATING_POINT -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEBUG"
@@ -63,7 +63,7 @@ ldflags = "rcs"
 [[targets]]
 name = "ruxos_sqlite3"
 src = "./"
-src_excluded = ["sqlite-amalgamation-3410100"]
+src_exclude = ["sqlite-amalgamation-3410100"]
 include_dir = "./"
 type = "exe"
 cflags = ""

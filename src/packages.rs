@@ -12,8 +12,8 @@ use std::os::unix::fs::PermissionsExt;
 use serde::{Serialize, Deserialize};
 use std::error::Error;
 
-static PACKAGES_URL: &str = "https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
-static SYSWONDER_URL: &str = "https://github.com/syswonder";
+static PACKAGES_URL: &str = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
+static SYSWONDER_URL: &str = "https://mirror.ghproxy.com/https://github.com/syswonder";
 static PKG_DIR: &str = "ruxos_pkg";
 static BIN_DIR: &str = "ruxos_pkg/app-bin";
 static CACHE_DIR: &str = "ruxos_pkg/cache";

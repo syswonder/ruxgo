@@ -20,37 +20,19 @@ This will automatically download Ruxgo, build it, and install it in Cargo's glob
 
 To uninstall, run the command `cargo uninstall ruxgo`.
 
+**Note:**
+
+If you have problems with the installation, you may need to install some build dependencies, refer to [README.md](https://github.com/syswonder/ruxos?tab=readme-ov-file#install-build-dependencies) under RuxOS.
+
 ## Features & TODOs
 
-* [x] Multithreaded
-* [x] Can generate compile_commands.json
-* [x] Can generate .vscode/c_cpp_properties.json
-* [x] Auto add project libraries to other targets
-* [x] Get libraries as packages from github
-* [x] Supported ruxos and different platforms
-* [x] Supported run by qemu
+* [x] Multithreaded and incremental builds
+* [x] Supports static libs and dynamic libs
+* [x] Support for building on RuxOS
 * [x] Supported ruxlibc and ruxmusl
-* [ ] Create new project
-
-## Quickstart & Ruxgo-apps
-
-The `apps/` directory places all the Toml files that have been tested, you can switch to either directory and follow the instructions to build the application. Currently, there are two ways to build an app:
-
-- If building locally, you'll need to download the apps source code and then use ruxgo to build and run it.
-
-- If you want to build on ruxos, you need to copy `config_linux.toml` from `ruxgo/apps/<name>/ruxos` into `ruxos/apps/c/<name>`, then download the apps source code and use ruxgo to build and run it.
-
-**Note:** Refer to the README.md in each app directory for details. The following applications are already supported:
-
-* [x] [redis](apps/redis)
-* [x] [sqlite3](apps/sqlite3)
-* [x] [iperf](apps/iperf)
-* [x] helloworld
-* [x] memtest
-* [x] httpclient
-* [x] httpserver
-* [x] nginx
-* [ ] python3
+* [x] Can generate compile_commands.json
+* [x] Package management
+* [ ] Automatically parses Makefiles
 
 ## Usage
 
@@ -72,3 +54,23 @@ ruxgo --help
 ```
 
 You can also configure the log level with the environment variable `"RUXGO_LOG_LEVEL"`, the default log level is "Info".
+
+## Ruxgo-apps
+
+The `ruxgo/apps/` directory places all the Toml files that have been tested, you can switch to either directory and follow the instructions to build the application. Currently, there are two ways to build an app:
+
+- If building locally, you'll need to download the apps source code and then use ruxgo to build and run it.
+
+- If you want to build on ruxos, you need to copy `config_<platform>.toml` from `ruxgo/apps/<name>/ruxos` into `ruxos/apps/c/<name>`, then download the apps source code and use ruxgo to build and run it.
+
+**Note:** Refer to the README.md in each app directory for details. The following applications are already supported:
+
+* [x] [redis](apps/redis)
+* [x] [sqlite3](apps/sqlite3)
+* [x] [iperf](apps/iperf)
+* [x] helloworld
+* [x] memtest
+* [x] httpclient
+* [x] httpserver
+* [x] nginx
+* [ ] python3

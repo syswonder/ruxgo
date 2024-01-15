@@ -1,31 +1,36 @@
 # ruxgo help
 
-```console
-ruxgo --help
+`ruxgo help` 命令用于显示 `ruxgo` 工具的帮助信息，包括其各个子命令的详细说明。
+
+## 使用方式
+
+要获取 `ruxgo` 工具或其任一子命令的帮助信息，您可以执行以下操作：
+
+```
+ruxgo help [子命令]
 ```
 
-help命令会显示如下内容:
+## 示例
 
-```sh
-Usage: ruxgo [OPTIONS] [CHOICES]... [COMMAND]
+- 显示 `ruxgo` 的总体帮助信息：
 
-Commands:
-  init    Initialize a new project Defaults to C++ if no language is specified
-  config  Configuration settings
-  help    Print this message or the help of the given subcommand(s)
+  ```
+  ruxgo help
+  ```
 
-Arguments:
-  [CHOICES]...  Choose which parts to delete
+- 查看关于 `init` 命令的详细帮助：
 
-Options:
-  -b, --build                   Build your project
-  -c, --clean                   Clean the obj and bin intermediates
-  -r, --run                     Run the executable
-      --bin-args <BIN_ARGS>...  Arguments to pass to the executable when running
-      --gen-cc                  Generate compile_commands.json
-      --gen-vsc                 Generate .vscode/c_cpp_properties.json
-      --update-packages         Update packages
-      --restore-packages        Restore packages
-  -h, --help                    Print help
-  -V, --version                 Print version
-```
+  ```
+  ruxgo help init
+  ```
+
+- 查看关于 `pkg` 命令的详细帮助：
+
+  ```
+  ruxgo help pkg
+  ```
+
+## 提示
+
+- 不带任何子命令时，`ruxgo help` 将显示 `ruxgo` 工具的总体帮助信息，包括所有可用的命令和选项。
+- 当指定一个子命令时，如 `ruxgo help init`，将显示该特定子命令的详细帮助信息。

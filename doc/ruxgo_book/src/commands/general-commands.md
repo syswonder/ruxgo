@@ -1,5 +1,7 @@
 # 通用命令
 
-* [ruxgo help](./ruxgo-help.md)
+* [ruxgo init](./ruxgo-init.md)
 
-* [ruxgo version](./ruxgo-version.md)
+* [ruxgo pkg](./ruxgo-pkg.md)
+
+* [ruxgo help](./ruxgo-help.md)

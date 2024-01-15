@@ -1,6 +1,6 @@
 # builder 模块
 
-**[build]** 模块描述了编译器的类型和所需远程库包。它包含两个部分: `compiler`和`packages`。
+**[build]** 模块描述了编译器的类型和所需远程库包。它包含两个部分: `compiler` 和 `packages`。
 
 - `compiler`: 指定编译器类型，例如: "gcc"。
 
