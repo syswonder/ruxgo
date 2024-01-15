@@ -55,6 +55,7 @@ impl fmt::Display for PackageType {
 struct PackageInfo {
     typ: PackageType,
     name: String,
+    branch: String,
     version: String,
     description: String
 }
@@ -100,14 +101,14 @@ pub async fn list_packages() -> Result<(), Box<dyn Error>> {
     let pkgs = load_or_refresh_packages(true).await?;
 
     // print the information of each package
-    println!("{:-<1$}", "", 87);
-    println!("{:<10} {:<30} {:<22} {:<25}", "TYPE".bold(), "NAME".bold(), "VERSION".bold(), "DESCRIPTION".bold());
-    println!("{:-<1$}", "", 87);
+    println!("{:-<1$}", "", 97);
+    println!("{:<10} {:<30} {:<10} {:<22} {:<25}", "TYPE".bold(), "NAME".bold(), "BRANCH".bold(), "VERSION".bold(), "DESCRIPTION".bold());
+    println!("{:-<1$}", "", 97);
     for pkg in pkgs {
-        println!("{:<10} {:<30} {:<22} {:<25}", 
-        pkg.typ, pkg.name, pkg.version, pkg.description);
+        println!("{:<10} {:<30} {:<10} {:<22} {:<25}",
+        pkg.typ, pkg.name, pkg.branch, pkg.version, pkg.description);
     }
-    println!("{:-<1$}", "", 87);
+    println!("{:-<1$}", "", 97);
 
     Ok(())
 }
