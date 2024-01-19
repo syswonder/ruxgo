@@ -8,6 +8,7 @@ use std::path::Path;
 use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
+use crate::hasher;
 
 static BUILD_DIR: &str = "ruxos_bld";
 static BIN_DIR: &str = "ruxos_bld/bin";
@@ -17,6 +18,9 @@ static OBJ_DIR: &str = "ruxos_bld/obj_win32";
 static OBJ_DIR: &str = "ruxos_bld/obj_linux";
 static TARGET_DIR: &str = "ruxos_bld/target";
 static PACKAGES_DIR: &str = "ruxos_bld/packages";
+
+// OSConfig hash file
+static OSCONFIG_HASH_FILE: &str = "ruxos_bld/os_config.hash";
 
 // ruxlibc info
 static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
@@ -82,6 +86,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
     // Removes os if choices includes "OS" or choices includes "All"
     if choices.contains(&String::from("OS")) || choices.contains(&String::from("All")) {
         remove_dir(TARGET_DIR);
+        remove_file(OSCONFIG_HASH_FILE);
     }
 
     // Removes ulib if choices includes "Ulib" or choices includes "All"
@@ -322,6 +327,8 @@ pub fn build(
         });
     }
     
+    let mut config_changed = false;
+
     // Constructs os and ulib
     if os_config != &OSConfig::default() {
         log(LogLevel::Log, &format!("Compiling OS: {}, Ulib: {} ", os_config.name, os_config.ulib));
@@ -332,12 +339,23 @@ pub fn build(
         } else if os_config.ulib == "ruxmusl" {
             build_ruxmusl(build_config, os_config);
         }
+
+        // check if the hash has changed and update if necessary
+        let os_config_str = serde_json::to_string(os_config).unwrap_or_else(|_| "".to_string());
+        let current_hash = hasher::hash_string(&os_config_str);
+        let old_hash = hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
+        config_changed = old_hash != current_hash;
+        if config_changed {
+            hasher::save_hash_to_file(OSCONFIG_HASH_FILE, &current_hash);
+        }
     };
 
     // Constructs each target separately
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets, packages);
-        tgt.build(gen_cc);
+
+        let needs_relink = config_changed && target.typ == "exe";
+        tgt.build(gen_cc, needs_relink);
     }
 
     if gen_cc {
@@ -436,7 +454,7 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
     let ulib_targets = Vec::new();
     let ulib_packages = Vec::new();
     let mut tgt = Target::new(build_config, os_config, &ulib_tgt, &ulib_targets, &ulib_packages);
-    tgt.build(gen_cc);
+    tgt.build(gen_cc, false);
 }
 
 /// Builds the ruxmusl

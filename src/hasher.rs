@@ -1,4 +1,5 @@
 //! This module contains functions for hashing files and checking if they have changed.
+
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::cmp::min;
@@ -34,6 +35,16 @@ fn hash_file(path: &str) -> Option<String> {
         log(LogLevel::Warn, &format!("Failed to open file '{}'", path));
         None
     }
+}
+
+/// Hashes a string and returns the hash as a string.
+/// # Arguments
+/// * `content` - Contains the content to be hashed.
+pub fn hash_string(content: &str) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(content.as_bytes());
+    let result = hasher.finalize();
+    result.iter().map(|byte| format!("{:02x}", byte)).collect()
 }
 
 /// Returns the hash of a file if it exists in the path_hash.
@@ -84,6 +95,35 @@ pub fn save_hashes_to_file(path: &str, path_hash: &HashMap<String, String>) {
     for (path, hash) in path_hash {
         let line = format!("{} {}\n", path, hash);
         file.write(line.as_bytes()).unwrap();
+    }
+}
+
+/// Saves a string hash to a file.
+/// # Arguments
+/// * `path` - The path of the file to save the string hash to.
+/// * `hash` - The string hash value.
+pub fn save_hash_to_file(path: &str, hash: &str) {
+    let mut file = OpenOptions::new().write(true).create(true).open(path).unwrap_or_else(|_| {
+        log(LogLevel::Error, &format!("Failed to open hash file: {}", path));
+        std::process::exit(1);
+    });
+    file.write_all(hash.as_bytes()).unwrap();
+}
+
+/// Reads a string hash from a file.
+/// # Arguments
+/// * `path` - The path of the file to read.
+pub fn read_hash_from_file(path: &str) -> String {
+    let mut hash = String::new();
+    if !Path::new(path).exists() {
+        return hash;
+    }
+    if let Ok(mut file) = File::open(path) {
+        file.read_to_string(&mut hash).unwrap();
+        hash
+    } else {
+        log(LogLevel::Warn, &format!("Failed to open hash file '{}'", path));
+        std::process::exit(1);
     }
 }
 

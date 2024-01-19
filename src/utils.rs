@@ -9,6 +9,7 @@ use colored::Colorize;
 use std::default::Default;
 use crate::builder::Target;
 use std::process::{Command, Stdio};
+use serde::Serialize;
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -78,7 +79,7 @@ pub struct BuildConfig {
 }
 
 /// Struct descibing the OS config of the local project
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct OSConfig {
     pub name: String,
     pub features: Vec<String>,
@@ -87,7 +88,7 @@ pub struct OSConfig {
 }
 
 /// Struct descibing the platform config of the local project
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct PlatformConfig {
     pub name: String,
     pub arch: String,
@@ -101,7 +102,7 @@ pub struct PlatformConfig {
 }
 
 /// Struct descibing the qemu config of the local project
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct QemuConfig {
     pub debug: String,
     pub blk: String,

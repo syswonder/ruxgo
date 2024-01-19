@@ -160,7 +160,7 @@ impl<'a> Target<'a> {
             }
             let targets_all = targets.iter().chain(targets_pkg.iter());
             log(LogLevel::Error, &format!("Found libs: {:?}", targets_all.map(|x| {
-                if x.typ == "dll" || x.typ == "static" || x.typ == "object"{
+                if x.typ == "dll" || x.typ == "static" || x.typ == "object" {
                     x.name.clone()
                 } else {
                     "".to_string()
@@ -188,14 +188,14 @@ impl<'a> Target<'a> {
     /// Builds the target
     /// # Arguments
     /// * `gen_cc` - Generate compile_commands.json
-    pub fn build(&mut self, gen_cc: bool) {
+    pub fn build(&mut self, gen_cc: bool, relink: bool) {
         // build other lib targets of packages firstly
         for pkg in self.packages {
             for target in &pkg.target_configs {
-                if target.typ == "dll" || target.typ == "static" || target.typ == "object"{
+                if target.typ == "dll" || target.typ == "static" || target.typ == "object" {
                     // If the root target(exe target) adds os_config, the pkg_tgt also adds os_config
                     let mut pkg_tgt = Target::new(&pkg.build_config, &self.os_config, target, &pkg.target_configs, &pkg.sub_packages);
-                    pkg_tgt.build(gen_cc);
+                    pkg_tgt.build(gen_cc, relink);
                 }
             }
         }
@@ -218,6 +218,10 @@ impl<'a> Target<'a> {
                 src_ccs.push(self.gen_cc(src));
             }
         }
+        // if the os config changes, re-link
+        if relink {
+            to_link = true
+        }
         if gen_cc {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
@@ -239,6 +243,9 @@ impl<'a> Target<'a> {
             for dep_lib in &self.dependant_libs {
                 log(LogLevel::Log, &format!("\t {} need to be linked", dep_lib.bin_path)); 
             }
+            if relink {
+                log(LogLevel::Log, &format!("\t Configuration changed, triggering relink"));
+            }
             if !Path::new(OBJ_DIR).exists() {
                 fs::create_dir(OBJ_DIR).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Couldn't create obj dir: {}", why));
@@ -248,6 +255,7 @@ impl<'a> Target<'a> {
             log(LogLevel::Log, &format!("Target: {} is up to date", &self.target_config.name));
             return;
         }
+
         // Add progress bar
         let progress_bar = Arc::new(Mutex::new(ProgressBar::new(srcs_needed as u64)));
         let num_complete = Arc::new(Mutex::new(0));
