@@ -8,7 +8,7 @@ use std::path::Path;
 use std::io::Write;
 use std::fs;
 use std::process::{Command, Stdio};
-use crate::hasher;
+use crate::hasher::Hasher;
 
 static BUILD_DIR: &str = "ruxos_bld";
 static BIN_DIR: &str = "ruxos_bld/bin";
@@ -342,11 +342,11 @@ pub fn build(
 
         // check if the hash has changed and update if necessary
         let os_config_str = serde_json::to_string(os_config).unwrap_or_else(|_| "".to_string());
-        let current_hash = hasher::hash_string(&os_config_str);
-        let old_hash = hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
+        let current_hash = Hasher::hash_string(&os_config_str);
+        let old_hash = Hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
         config_changed = old_hash != current_hash;
         if config_changed {
-            hasher::save_hash_to_file(OSCONFIG_HASH_FILE, &current_hash);
+            Hasher::save_hash_to_file(OSCONFIG_HASH_FILE, &current_hash);
         }
     };
 

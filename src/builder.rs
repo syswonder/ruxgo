@@ -8,7 +8,7 @@ use std::fs;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::process::Command;
-use crate::hasher;
+use crate::hasher::Hasher;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -115,7 +115,7 @@ impl<'a> Target<'a> {
         let hash_file_path = format!("ruxos_bld/{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
         let hash_file_path = format!("ruxos_bld/{}.linux.hash", &target_config.name);
-        let path_hash = hasher::load_hashes_from_file(&hash_file_path);
+        let path_hash = Hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
 
         // add dependant libs
@@ -293,7 +293,7 @@ impl<'a> Target<'a> {
             }
         }
         for src in src_hash_to_update.lock().unwrap().iter() {
-            hasher::save_hash(&src.path, &mut self.path_hash);
+            Hasher::save_hash(&src.path, &mut self.path_hash);
         }
         if to_link {
             log(LogLevel::Log, "Linking: Since source files were compiled");
@@ -302,10 +302,10 @@ impl<'a> Target<'a> {
             }
             for src in &self.srcs {
                 for include in &src.dependant_includes {
-                    hasher::save_hash(include, &mut self.path_hash);
+                    Hasher::save_hash(include, &mut self.path_hash);
                 }
             }
-            hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
+            Hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
             self.link(&self.dependant_libs);
         }
     }
@@ -345,7 +345,7 @@ impl<'a> Target<'a> {
             .expect("failed to execute process");
         if output.status.success() {
             log(LogLevel::Log, "Linking successful");
-            hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
+            Hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
         } else {
             log(LogLevel::Error, "Linking failed");
             log(LogLevel::Error, &format!(" Command: {}", &cmd));
@@ -371,7 +371,7 @@ impl<'a> Target<'a> {
     }
 
     /// Links the dll targets
-    pub fn link_dll(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
+    fn link_dll(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
         let mut cmd = String::new();
         if !self.target_config.linker.is_empty() {
             cmd.push_str(&self.target_config.linker);
@@ -415,7 +415,7 @@ impl<'a> Target<'a> {
     }
 
     /// Links the static targets
-    pub fn link_static(&self, objs: Vec<&String>) -> String {
+    fn link_static(&self, objs: Vec<&String>) -> String {
         let mut cmd = String::new();
         cmd.push_str(&self.target_config.archive);
         cmd.push_str(" ");
@@ -431,7 +431,7 @@ impl<'a> Target<'a> {
     }
 
     /// Links the object targets
-    pub fn link_object(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
+    fn link_object(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> String {
         let mut cmd = String::new();
         if !self.target_config.linker.is_empty() {
             cmd.push_str(&self.target_config.linker);
@@ -456,7 +456,7 @@ impl<'a> Target<'a> {
     }
 
     /// Links the executable targets
-    pub fn link_exe(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> (String, String) {
+    fn link_exe(&self, objs: Vec<&String>, dep_targets: &Vec<Target>) -> (String, String) {
         let mut cmd = String::new();
         let mut cmd_bin = String::new();
         if !self.target_config.linker.is_empty() {
@@ -818,12 +818,12 @@ impl Src {
             return result;
         }
 
-        if hasher::is_file_changed(&self.path, path_hash) {
+        if Hasher::is_file_changed(&self.path, path_hash) {
             let result = (true, format!("\tSource file has changed: {}", &self.path));
             return result;
         }
         for dependant_include in &self.dependant_includes {
-            if hasher::is_file_changed(&dependant_include.clone(), path_hash) {
+            if Hasher::is_file_changed(&dependant_include.clone(), path_hash) {
                 let result = (true, format!("\tSource file: {} depends on changed include file: {}", &self.path, &dependant_include));
                 return result;
             }
