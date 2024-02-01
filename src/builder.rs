@@ -200,13 +200,12 @@ impl<'a> Target<'a> {
             }
         }
         let mut to_link: bool = false;
+
+        // if the source file needs to be build, then to link
         let mut link_causer: Vec<&str> = Vec::new();  // trace the linked source files
         let mut srcs_needed = 0;
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
-        if !self.dependant_libs.is_empty() {
-            to_link = true;
-        }
         for src in &self.srcs {
             let (to_build, _) = src.to_build(&self.path_hash);
             if to_build {
@@ -218,10 +217,17 @@ impl<'a> Target<'a> {
                 src_ccs.push(self.gen_cc(src));
             }
         }
-        // if the os config changes, re-link
+
+        // if the source file is empty and dependant_libs is not empty, then to link
+        if self.srcs.is_empty() && !self.dependant_libs.is_empty() {
+            to_link = true;
+        }
+
+        // if the os config changes, then to link
         if relink {
             to_link = true
         }
+
         if gen_cc {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
@@ -234,21 +240,28 @@ impl<'a> Target<'a> {
                 }
             }
         }
+
+        // log output when to link
         if to_link {
             log(LogLevel::Log, &format!("Compiling Target: {}", &self.target_config.name));
-            log(
-                LogLevel::Log, 
-                &format!("\t {} of {} source files have to be compiled", srcs_needed, total_srcs)
-            );
-            for dep_lib in &self.dependant_libs {
-                log(LogLevel::Log, &format!("\t {} need to be linked", dep_lib.bin_path)); 
+            if srcs_needed > 0 {
+                log(
+                    LogLevel::Log,
+                    &format!("\t {} of {} source files have to be compiled", srcs_needed, total_srcs)
+                );
+            }
+            if self.srcs.is_empty() && !self.dependant_libs.is_empty() {
+                for dep_lib in &self.dependant_libs {
+                    log(LogLevel::Log, &format!("\t {} have to be linked", dep_lib.bin_path));
+                }
             }
             if relink {
-                log(LogLevel::Log, &format!("\t Configuration changed, triggering relink"));
+                log(LogLevel::Log, &format!("\t OS config changed, exe target needs to be relinked"));
             }
             if !Path::new(OBJ_DIR).exists() {
                 fs::create_dir(OBJ_DIR).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Couldn't create obj dir: {}", why));
+                    std::process::exit(1);
                 });
             }
         } else {
@@ -295,10 +308,11 @@ impl<'a> Target<'a> {
         for src in src_hash_to_update.lock().unwrap().iter() {
             Hasher::save_hash(&src.path, &mut self.path_hash);
         }
+
+        // Link target
         if to_link {
-            log(LogLevel::Log, "Linking: Since source files were compiled");
             for src in link_causer {
-                log(LogLevel::Info, &format!("\tFile: {}", &src));
+                log(LogLevel::Info, &format!("\tLinking file: {}", &src));
             }
             for src in &self.srcs {
                 for include in &src.dependant_includes {
