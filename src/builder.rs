@@ -255,9 +255,6 @@ impl<'a> Target<'a> {
                     log(LogLevel::Log, &format!("\t {} have to be linked", dep_lib.bin_path));
                 }
             }
-            if relink {
-                log(LogLevel::Log, &format!("\t OS config changed, exe target needs to be relinked"));
-            }
             if !Path::new(OBJ_DIR).exists() {
                 fs::create_dir(OBJ_DIR).unwrap_or_else(|why| {
                     log(LogLevel::Error, &format!("Couldn't create obj dir: {}", why));

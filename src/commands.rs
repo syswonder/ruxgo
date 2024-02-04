@@ -91,6 +91,7 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
 
     // Removes ulib if choices includes "Ulib" or choices includes "All"
     if choices.contains(&String::from("Ulib")) || choices.contains(&String::from("All")) {
+        remove_file(OSCONFIG_HASH_FILE);
         if os_config.ulib == "ruxlibc" {
             remove_file(RUXLIBC_HASH_PATH);
             remove_file(RUXLIBC_BIN);
@@ -326,27 +327,29 @@ pub fn build(
             std::process::exit(1);
         });
     }
-    
+
     let mut config_changed = false;
 
     // Constructs os and ulib
     if os_config != &OSConfig::default() {
-        log(LogLevel::Log, &format!("Compiling OS: {}, Ulib: {} ", os_config.name, os_config.ulib));
-        let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-        build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
-        if os_config.ulib == "ruxlibc" {
-            build_ruxlibc(build_config, os_config, gen_cc);
-        } else if os_config.ulib == "ruxmusl" {
-            build_ruxmusl(build_config, os_config);
-        }
-
         // check if the hash has changed and update if necessary
         let os_config_str = serde_json::to_string(os_config).unwrap_or_else(|_| "".to_string());
         let current_hash = Hasher::hash_string(&os_config_str);
         let old_hash = Hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
-        config_changed = old_hash != current_hash;
-        if config_changed {
+        if old_hash != current_hash {
+            log(LogLevel::Log, &format!("OS config changed, all targets need to be relinked"));
+            log(LogLevel::Log, &format!("Compiling OS: {}, Ulib: {} ", os_config.name, os_config.ulib));
+            config_changed = true;
+            let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
+            build_os(&os_config, &os_config.ulib, &rux_feats_final, &lib_feats_final);
+            if os_config.ulib == "ruxlibc" {
+                build_ruxlibc(build_config, os_config, gen_cc);
+            } else if os_config.ulib == "ruxmusl" {
+                build_ruxmusl(build_config, os_config);
+            }
             Hasher::save_hash_to_file(OSCONFIG_HASH_FILE, &current_hash);
+        } else {
+            log(LogLevel::Log, &format!("OS config is up to date"));
         }
     };
 
