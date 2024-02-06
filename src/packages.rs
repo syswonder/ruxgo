@@ -14,9 +14,9 @@ use std::error::Error;
 
 static PACKAGES_URL: &str = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
 static SYSWONDER_URL: &str = "https://mirror.ghproxy.com/https://github.com/syswonder";
-static PKG_DIR: &str = "ruxos_pkg";
-static BIN_DIR: &str = "ruxos_pkg/app-bin";
-static CACHE_DIR: &str = "ruxos_pkg/cache";
+static PKG_DIR: &str = "ruxgo_pkg";
+static BIN_DIR: &str = "ruxgo_pkg/app-bin";
+static CACHE_DIR: &str = "ruxgo_pkg/cache";
 
 /// Enum describing the Package type
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

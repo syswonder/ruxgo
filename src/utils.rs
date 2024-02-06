@@ -719,7 +719,7 @@ impl Package {
             let repo = deets[0].to_string().replace(",", "");
             let branch = deets[1].to_string();
             let name = repo.split("/").collect::<Vec<&str>>()[1].to_string();
-            let source_dir = format!("./ruxos_bld/packages/{}/", name);
+            let source_dir = format!("./ruxgo_bld/packages/{}/", name);
             let mut sub_packages: Vec<Package> = Vec::new();
             // git clone packages
             if !Path::new(&source_dir).exists() {

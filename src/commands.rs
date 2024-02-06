@@ -10,21 +10,21 @@ use std::fs;
 use std::process::{Command, Stdio};
 use crate::hasher::Hasher;
 
-static BUILD_DIR: &str = "ruxos_bld";
-static BIN_DIR: &str = "ruxos_bld/bin";
+static BUILD_DIR: &str = "ruxgo_bld";
+static BIN_DIR: &str = "ruxgo_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "ruxos_bld/obj_win32";
+static OBJ_DIR: &str = "ruxgo_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "ruxos_bld/obj_linux";
-static TARGET_DIR: &str = "ruxos_bld/target";
-static PACKAGES_DIR: &str = "ruxos_bld/packages";
+static OBJ_DIR: &str = "ruxgo_bld/obj_linux";
+static TARGET_DIR: &str = "ruxgo_bld/target";
+static PACKAGES_DIR: &str = "ruxgo_bld/packages";
 
 // OSConfig hash file
-static OSCONFIG_HASH_FILE: &str = "ruxos_bld/os_config.hash";
+static OSCONFIG_HASH_FILE: &str = "ruxgo_bld/os_config.hash";
 
 // ruxlibc info
-static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
-static RUXLIBC_HASH_PATH: &str = "ruxos_bld/libc.linux.hash";
+static RUXLIBC_BIN: &str = "ruxgo_bld/bin/libc.a";
+static RUXLIBC_HASH_PATH: &str = "ruxgo_bld/libc.linux.hash";
 lazy_static! {
     static ref RUXLIBC_SRC: String = {
         let path1 = "../ruxos/ulib/ruxlibc/c";
@@ -38,7 +38,7 @@ lazy_static! {
 }
 
 // ruxmusl info
-static RUXMUSL_DIR: &str = "ruxos_bld/ruxmusl";
+static RUXMUSL_DIR: &str = "ruxgo_bld/ruxmusl";
 lazy_static! {
     static ref ULIB_RUXMUSL: String = {
         let path1 = "../ruxos/ulib/ruxmusl";
@@ -105,9 +105,9 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
         // removes local bins of targets
         for target in targets {
             #[cfg(target_os = "windows")]
-            let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
+            let hash_path = format!("ruxgo_bld/{}.win32.hash", &target.name);
             #[cfg(target_os = "linux")]
-            let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
+            let hash_path = format!("ruxgo_bld/{}.linux.hash", &target.name);
             remove_file(&hash_path);
             if Path::new(BIN_DIR).exists() {
                 let mut bin_name = format!("{}/{}", BIN_DIR, target.name);
@@ -137,9 +137,9 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
         for pack in packages {
             for target in &pack.target_configs {
                 #[cfg(target_os = "windows")]
-                let hash_path = format!("ruxos_bld/{}.win32.hash", &target.name);
+                let hash_path = format!("ruxgo_bld/{}.win32.hash", &target.name);
                 #[cfg(target_os = "linux")]
-                let hash_path = format!("ruxos_bld/{}.linux.hash", &target.name);
+                let hash_path = format!("ruxgo_bld/{}.linux.hash", &target.name);
                 remove_file(&hash_path);
                 if Path::new(BIN_DIR).exists() {
                     let mut bin_name = format!("{}/{}", BIN_DIR, target.name);
@@ -195,7 +195,7 @@ pub fn build(
 ) {
     if !Path::new(BUILD_DIR).exists() {
         fs::create_dir(BUILD_DIR).unwrap_or_else(|why| {
-            log(LogLevel::Error, &format!("Could not create ruxos_bld directory: {}", why));
+            log(LogLevel::Error, &format!("Could not create ruxgo_bld directory: {}", why));
             std::process::exit(1);
         });
     }
@@ -330,9 +330,8 @@ pub fn build(
 
     let mut config_changed = false;
 
-    // Constructs os and ulib
+    // Checks and constructs os and ulib based on the os_config changes.
     if os_config != &OSConfig::default() {
-        // check if the hash has changed and update if necessary
         let os_config_str = serde_json::to_string(os_config).unwrap_or_else(|_| "".to_string());
         let current_hash = Hasher::hash_string(&os_config_str);
         let old_hash = Hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
@@ -353,7 +352,7 @@ pub fn build(
         }
     };
 
-    // Constructs each target separately
+    // Constructs each target separately based on the os_config changes.
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets, packages);
 
@@ -483,7 +482,7 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
                 .wait().expect("Failed to wait for command");
         }
 
-        // create ruxos_bld/ruxmusl
+        // create ruxgo_bld/ruxmusl
         fs::create_dir_all(RUXMUSL_DIR).unwrap_or_else(|why| {
             log(LogLevel::Error, &format!("Couldn't create build dir: {}", why));
             std::process::exit(1);
@@ -843,7 +842,7 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
                 std::process::exit(1);
             });
         gitignore_file
-            .write_all(b"ruxos_bld\ncompile_commands.json\n.cache\n")
+            .write_all(b"ruxgo_bld\ncompile_commands.json\n.cache\n")
             .unwrap_or_else(|why| {
                 log(LogLevel::Error, &format!("Could not write to .gitignore: {}", why));
                 std::process::exit(1);

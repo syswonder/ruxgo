@@ -20,7 +20,7 @@ ruxgo pkg [选项]
 - `--clean-all`: 清理所有软件包。
 - `-h, --help`: 打印帮助信息。
 
-下载的文件保存在 `ruxos_pkg/` 目录中，具体内容如下：
+下载的文件保存在 `ruxgo_pkg/` 目录中，具体内容如下：
 
 - `app-bin/`: 存放 app 可执行文件及其对应脚本。
 - `ruxos/`: ruxos 存储位置。

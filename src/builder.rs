@@ -14,12 +14,12 @@ use std::sync::{Arc, Mutex};
 use indicatif::{ProgressBar, ProgressStyle};
 use colored::Colorize;
 
-static BUILD_DIR: &str = "ruxos_bld";
-static BIN_DIR: &str = "ruxos_bld/bin";
+static BUILD_DIR: &str = "ruxgo_bld";
+static BIN_DIR: &str = "ruxgo_bld/bin";
 #[cfg(target_os = "windows")]
-static OBJ_DIR: &str = "ruxos_bld/obj_win32";
+static OBJ_DIR: &str = "ruxgo_bld/obj_win32";
 #[cfg(target_os = "linux")]
-static OBJ_DIR: &str = "ruxos_bld/obj_linux";
+static OBJ_DIR: &str = "ruxgo_bld/obj_linux";
 
 // ruxlibc info and ld script
 lazy_static! {
@@ -42,12 +42,12 @@ lazy_static! {
         }
     };
 }
-static RUXLIBC_BIN: &str = "ruxos_bld/bin/libc.a";
+static RUXLIBC_BIN: &str = "ruxgo_bld/bin/libc.a";
 static RUXLIBC_RUST_LIB: &str = "libruxlibc.a";
 
 // ruxmusl info
-static RUXMUSL_INC: &str = "ruxos_bld/ruxmusl/install/include";
-static RUXMUSL_BIN: &str = "ruxos_bld/ruxmusl/install/lib/libc.a";
+static RUXMUSL_INC: &str = "ruxgo_bld/ruxmusl/install/include";
+static RUXMUSL_BIN: &str = "ruxgo_bld/ruxmusl/install/lib/libc.a";
 static RUXMUSL_RUST_LIB: &str = "libruxmusl.a";
 
 /// Represents a target
@@ -112,9 +112,9 @@ impl<'a> Target<'a> {
             _ => (),
         }
         #[cfg(target_os = "windows")]
-        let hash_file_path = format!("ruxos_bld/{}.win32.hash", &target_config.name);
+        let hash_file_path = format!("ruxgo_bld/{}.win32.hash", &target_config.name);
         #[cfg(target_os = "linux")]
-        let hash_file_path = format!("ruxos_bld/{}.linux.hash", &target_config.name);
+        let hash_file_path = format!("ruxgo_bld/{}.linux.hash", &target_config.name);
         let path_hash = Hasher::load_hashes_from_file(&hash_file_path);
         let mut dependant_libs = Vec::new();
 
@@ -266,7 +266,7 @@ impl<'a> Target<'a> {
             return;
         }
 
-        // Add progress bar
+        // Parallel built
         let progress_bar = Arc::new(Mutex::new(ProgressBar::new(srcs_needed as u64)));
         let num_complete = Arc::new(Mutex::new(0));
         let src_hash_to_update = Arc::new(Mutex::new(Vec::new()));
@@ -281,8 +281,8 @@ impl<'a> Target<'a> {
                 }
                 src_hash_to_update.lock().unwrap().push(src);
                 log(LogLevel::Info, &format!("Compiled: {}", src.path));
-                // If the RUXOS_LOG_LEVEL is not "Info" or "Debug", update the compilation progress bar
-                let log_level = std::env::var("RUXOS_LOG_LEVEL").unwrap_or("".to_string());
+                // If the RUXGO_LOG_LEVEL is not "Info" or "Debug", update the compilation progress bar
+                let log_level = std::env::var("RUXGO_LOG_LEVEL").unwrap_or("".to_string());
                 if !(log_level == "Info" || log_level == "Debug") {
                     let mut num_complete = num_complete.lock().unwrap();
                     *num_complete += 1;
@@ -356,7 +356,7 @@ impl<'a> Target<'a> {
             .expect("failed to execute process");
         if output.status.success() {
             log(LogLevel::Log, "Linking successful");
-            Hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);
+            Hasher::save_hashes_to_file(&self.hash_file_path, &self.path_hash);     // ? check if repeated
         } else {
             log(LogLevel::Error, "Linking failed");
             log(LogLevel::Error, &format!(" Command: {}", &cmd));

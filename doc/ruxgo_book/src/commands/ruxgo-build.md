@@ -16,10 +16,10 @@ ruxgo -b [--path <路径>] [--gen-cc] [--gen-vsc]
 
 ## 命令行为
 
-当执行 `ruxgo -b` 命令后，将会在当前目录下创建一个名为 `ruxos_bld/` 的构建目录，包括以下内容：
+当执行 `ruxgo -b` 命令后，将会在当前目录下创建一个名为 `ruxgo_bld/` 的构建目录，包括以下内容：
 
 ```bash
-ruxos_bld/
+ruxgo_bld/
 ├── bin/
 ├── obj_linux/ 或 obj_win32/
 ├── target/

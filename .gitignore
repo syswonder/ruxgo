@@ -2,10 +2,10 @@
 /Nomu_Engine
 *.hash
 compile_commands.json
-ruxos_bld
+ruxgo_bld
 sqlite-amalgamation-3410100
 file.sqlite
 dump.rdb
 iperf
-ruxos_pkg
+ruxgo_pkg
 my_project
