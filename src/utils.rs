@@ -1,15 +1,18 @@
 //! This file contains various logging, toml parsing functions and environment configuration
 //! used by the ruxgo library
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Once};
 use std::{io::Read, path::Path};
 use std::fs::{self, File};
 use toml::{Table, Value};
 use colored::Colorize;
 use std::default::Default;
-use crate::builder::Target;
 use std::process::{Command, Stdio};
 use serde::Serialize;
+use crate::builder::Target;
+
+static INIT: Once = Once::new();
+static LOG_LEVEL: RwLock<LogLevel> = RwLock::new(LogLevel::Info);
 
 /// This enum is used to represent the different log levels
 #[derive(PartialEq, PartialOrd, Debug)]
@@ -19,6 +22,23 @@ pub enum LogLevel {
     Log,
     Warn,
     Error,
+}
+
+/// Initializes the log level, which is called only once when the program starts
+fn init_log_level() {
+    let level = std::env::var("RUXGO_LOG_LEVEL").unwrap_or_else(|_| "Info".to_string());
+    let log_level = match level.as_str() {
+        "Debug" => LogLevel::Debug,
+        "Info" => LogLevel::Info,
+        "Log" => LogLevel::Log,
+        "Warn" => LogLevel::Warn,
+        "Error" => LogLevel::Error,
+        _ => LogLevel::Log,
+    };
+
+    // Use write lock to update the log level
+    let mut write_lock = LOG_LEVEL.write().unwrap();
+    *write_lock = log_level;
 }
 
 /// This function is used to log messages to the console
@@ -41,6 +61,9 @@ pub enum LogLevel {
 /// * `Error`
 /// If the environment variable is not set, the default log level is `Log`
 pub fn log(level: LogLevel, message: &str) {
+    INIT.call_once(|| {
+        init_log_level();
+    });
     let level_str = match level {
         LogLevel::Debug => "[DEBUG]".purple(),
         LogLevel::Info => "[INFO]".blue(),
@@ -48,25 +71,8 @@ pub fn log(level: LogLevel, message: &str) {
         LogLevel::Warn => "[WARN]".yellow(),
         LogLevel::Error => "[ERROR]".red(),
     };
-    let log_level = match std::env::var("RUXGO_LOG_LEVEL") {
-        Ok(val) => {
-            if val == "Debug" {
-                LogLevel::Debug
-            } else if val == "Info" {
-                LogLevel::Info
-            } else if val == "Log" {
-                LogLevel::Log
-            } else if val == "Warn" {
-                LogLevel::Warn
-            } else if val == "Error" {
-                LogLevel::Error
-            } else {
-                LogLevel::Log
-            }
-        }
-        Err(_) => LogLevel::Info,
-    };
-    if level >= log_level {
+    // Use read lock to check log level
+    if level >= *LOG_LEVEL.read().unwrap() {
         println!("{} {}", level_str, message);
     }
 }
