@@ -1,7 +1,8 @@
 //! This module contains the build related functions
 
-use crate::features::cfg_feat;
-use crate::utils::{BuildConfig, TargetConfig, Package, log, LogLevel, OSConfig};
+use crate::utils::features::cfg_feat;
+use crate::parser::{BuildConfig, TargetConfig, OSConfig};
+use crate::utils::log::{log, LogLevel};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
 use std::fs;
@@ -62,7 +63,6 @@ pub struct Target<'a> {
     hash_file_path: String,
     path_hash: HashMap<String, String>,
     dependant_libs: Vec<Target<'a>>,
-    packages: &'a Vec<Package>,
 }
 
 /// Represents a source file (A single C or Cpp file)
@@ -81,13 +81,11 @@ impl<'a> Target<'a> {
     /// * `build_config` - Build config
     /// * `target_config` - Target config
     /// * `targets` - All targets
-    /// * `packages` - All packages
     pub fn new (
         build_config: &'a BuildConfig, 
         os_config: &'a OSConfig,
         target_config: &'a TargetConfig, 
-        targets: &'a Vec<TargetConfig>, 
-        packages: &'a Vec<Package>
+        targets: &'a Vec<TargetConfig>
     ) -> Self {
         let srcs = Vec::new();
         let dependant_includes: HashMap<String, Vec<String>> = HashMap::new();
@@ -122,14 +120,7 @@ impl<'a> Target<'a> {
         for dependant_lib in &target_config.deps {
             for target in targets {
                 if target.name == *dependant_lib {
-                    dependant_libs.push(Target::new(build_config, os_config, target, targets, packages));
-                }
-            }
-            for pkg in packages {
-                for target in &pkg.target_configs {
-                    if target.name == *dependant_lib {
-                        dependant_libs.push(Target::new(&pkg.build_config, os_config, target, &pkg.target_configs, &pkg.sub_packages));
-                    }
+                    dependant_libs.push(Target::new(build_config, os_config, target, targets));
                 }
             }
         }
@@ -137,14 +128,12 @@ impl<'a> Target<'a> {
         // check types of the dependant libs
         for dep_lib in &dependant_libs {
             if dep_lib.target_config.typ != "dll" && dep_lib.target_config.typ != "static" && dep_lib.target_config.typ != "object" {
-                log(LogLevel::Error, "Can add only dlls, static or object libraries as dependant libs");
+                log(LogLevel::Error, "Can add only dll, static or object libs as dependant libs");
                 log(LogLevel::Error, &format!("Target: {} is not a dll, static or object library", dep_lib.target_config.name));
                 log(LogLevel::Error, &format!("Target: {} is a {}", dep_lib.target_config.name, dep_lib.target_config.typ));
                 std::process::exit(1);
             }
-            else {
-                log(LogLevel::Info, &format!("Adding dependant lib: {}", dep_lib.target_config.name));
-            }
+            log(LogLevel::Info, &format!("Adding dependant lib: {}", dep_lib.target_config.name));
             if !dep_lib.target_config.name.starts_with("lib") {
                 log(LogLevel::Error, "Dependant lib name must start with lib");
                 log(LogLevel::Error, &format!("Target: {} does not start with lib", dep_lib.target_config.name));
@@ -154,12 +143,7 @@ impl<'a> Target<'a> {
         if target_config.deps.len() > dependant_libs.len() {
             log(LogLevel::Error, "Dependant libs not found!");
             log(LogLevel::Error, &format!("Dependant libs: {:?}", target_config.deps));
-            let mut targets_pkg = Vec::new();
-            for pkg in packages {
-                targets_pkg.extend(pkg.target_configs.clone());
-            }
-            let targets_all = targets.iter().chain(targets_pkg.iter());
-            log(LogLevel::Error, &format!("Found libs: {:?}", targets_all.map(|x| {
+            log(LogLevel::Error, &format!("Found libs: {:?}", targets.iter().map(|x| {
                 if x.typ == "dll" || x.typ == "static" || x.typ == "object" {
                     x.name.clone()
                 } else {
@@ -179,7 +163,6 @@ impl<'a> Target<'a> {
             path_hash,
             hash_file_path,
             dependant_libs,
-            packages,
         };
         target.get_srcs(&target_config.src);
         target
@@ -188,21 +171,12 @@ impl<'a> Target<'a> {
     /// Builds the target
     /// # Arguments
     /// * `gen_cc` - Generate compile_commands.json
+    /// * `relink` - Determine whether to re-link
     pub fn build(&mut self, gen_cc: bool, relink: bool) {
-        // build other lib targets of packages firstly
-        for pkg in self.packages {
-            for target in &pkg.target_configs {
-                if target.typ == "dll" || target.typ == "static" || target.typ == "object" {
-                    // If the root target(exe target) adds os_config, the pkg_tgt also adds os_config
-                    let mut pkg_tgt = Target::new(&pkg.build_config, &self.os_config, target, &pkg.target_configs, &pkg.sub_packages);
-                    pkg_tgt.build(gen_cc, relink);
-                }
-            }
-        }
         let mut to_link: bool = false;
 
         // if the source file needs to be build, then to link
-        let mut link_causer: Vec<&str> = Vec::new();  // trace the linked source files
+        let mut link_causer: Vec<&str> = Vec::new();
         let mut srcs_needed = 0;
         let total_srcs = self.srcs.len();
         let mut src_ccs = Vec::new();
@@ -266,7 +240,7 @@ impl<'a> Target<'a> {
             return;
         }
 
-        // Parallel built
+        // parallel built
         let progress_bar = Arc::new(Mutex::new(ProgressBar::new(srcs_needed as u64)));
         let num_complete = Arc::new(Mutex::new(0));
         let src_hash_to_update = Arc::new(Mutex::new(Vec::new()));
@@ -306,7 +280,7 @@ impl<'a> Target<'a> {
             Hasher::save_hash(&src.path, &mut self.path_hash);
         }
 
-        // Link target
+        // links the target
         if to_link {
             for src in link_causer {
                 log(LogLevel::Info, &format!("\tLinking file: {}", &src));
@@ -591,14 +565,6 @@ impl<'a> Target<'a> {
                 cc.push_str(" -I");
                 cc.push_str(include);
             });
-        }
-        for pack in self.packages {
-            for tgtg in &pack.target_configs {
-                tgtg.include_dir.iter().for_each(|include| {
-                    cc.push_str(" -I");
-                    cc.push_str(include);
-                });
-            }
         }
 
         cc.push_str(" ");

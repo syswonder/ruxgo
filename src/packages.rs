@@ -3,7 +3,7 @@
 use reqwest;
 use toml;
 use bytes::Bytes;
-use crate::utils::{log, LogLevel};
+use crate::utils::log::{log, LogLevel};
 use colored::Colorize;
 use std::{fs, fmt};
 use std::path::{Path, PathBuf};

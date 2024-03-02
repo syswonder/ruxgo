@@ -14,12 +14,12 @@ pub mod commands;
 pub mod utils;
 /// Contains hashing related functions
 pub mod hasher;
-/// Contains features related functions
-pub mod features;
 /// Handles global config
 pub mod global_cfg;
 /// Contains packages management related functions
 pub mod packages;
+/// Contains parse related functions
+pub mod parser;
 
 #[macro_use]
 extern crate lazy_static;

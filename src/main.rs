@@ -1,5 +1,6 @@
-use ruxgo::utils::OSConfig;
-use ruxgo::{utils, commands};
+use ruxgo::parser::OSConfig;
+use ruxgo::utils::log::{log, LogLevel};
+use ruxgo::commands;
 use clap::{Parser, Subcommand};
 use directories::ProjectDirs;
 use ruxgo::global_cfg::GlobalConfig;
@@ -23,7 +24,7 @@ struct CLIArgs {
     /// Run the executable
     #[arg(short, long)]
     run: bool,
-    /// Initialize a new project. See `init --help` for more info
+    /// Define subcommand
     #[command(subcommand)]
     commands: Option<Commands>,
     /// Path argument to pass to switch to the specified directory
@@ -128,10 +129,7 @@ license = "NONE"
         match args.commands {
             Some(Commands::Init { name, c, cpp }) => {
                 if c && cpp {
-                    utils::log(
-                        utils::LogLevel::Error,
-                        "Only one of --c or --cpp can be specified",
-                    );
+                    log(LogLevel::Error, "Only one of --c or --cpp can be specified");
                     std::process::exit(1);
                 }
                 if !c && !cpp {
@@ -172,7 +170,7 @@ license = "NONE"
                         .iter()
                         .map(|&index| String::from(items[index]))
                         .collect();
-                    utils::log(utils::LogLevel::Log, "Cleaning packages...");
+                    log(LogLevel::Log, "Cleaning packages...");
                     packages::clean_all_packages(choices).await.expect("Failed to clean choice packages");
                 }
             }
@@ -180,14 +178,11 @@ license = "NONE"
                 let parameter = parameter.as_str();
                 let value = value.as_str();
                 GlobalConfig::set_defaults(&config, parameter, value);
-                utils::log(
-                    utils::LogLevel::Log,
-                    format!("Setting {} to {}", parameter, value).as_str(),
-                );
+                log(LogLevel::Log, format!("Setting {} to {}", parameter, value).as_str());
                 std::process::exit(0);
             }
             None => {
-                utils::log(utils::LogLevel::Error, "Rust is broken");
+                log(LogLevel::Error, "Rust is broken");
                 std::process::exit(1);
             }
         }
@@ -207,16 +202,13 @@ license = "NONE"
 
     // If clean flag is provided, prompt user for choices
     if args.clean {
-        let (_, os_config, targets, packages) = commands::parse_config();
+        let (_, os_config, targets) = commands::parse_config();
         let mut items = vec!["All", "App_bins", "Obj"];
         if os_config != OSConfig::default() {
             items.push("OS");
             if !os_config.ulib.is_empty() {
                 items.push("Ulib");
             }
-        }
-        if !packages.is_empty() {
-            items.push("Packages");
         }
         let defaults = vec![false; items.len()];
         let choices = MultiSelect::new()
@@ -230,25 +222,24 @@ license = "NONE"
             .map(|&index| String::from(items[index]))
             .collect();
 
-        utils::log(utils::LogLevel::Log, "Cleaning...");
-        commands::clean(&targets, &os_config, &packages, choices);
+        log(LogLevel::Log, "Cleaning...");
+        commands::clean(&targets, &os_config, choices);
     }
 
     if args.build {
-        let (build_config, os_config, targets, packages) = commands::parse_config();
-        utils::log(utils::LogLevel::Log, "Building...");
-        commands::build(&build_config, &targets, &os_config, gen_cc, gen_vsc, &packages);
+        let (build_config, os_config, targets) = commands::parse_config();
+        log(LogLevel::Log, "Building...");
+        commands::build(&build_config, &targets, &os_config, gen_cc, gen_vsc);
     }
 
     if args.run {
-        let (build_config, os_config, targets, packages) = commands::parse_config();
+        let (build_config, os_config, targets) = commands::parse_config();
         let bin_args: Option<Vec<&str>> = args.bin_args
             .as_ref()
             .map(|x| x.iter().map(|x| x.as_str()).collect());
 
-        utils::log(utils::LogLevel::Log, "Running...");
+        log(LogLevel::Log, "Running...");
         let exe_target = targets.iter().find(|x| x.typ == "exe").unwrap();
-        commands::run(bin_args, &build_config, &os_config, exe_target, &targets, &packages);
+        commands::run(bin_args, &build_config, &os_config, exe_target, &targets);
     }
 }
-

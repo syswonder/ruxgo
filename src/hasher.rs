@@ -6,7 +6,7 @@ use std::cmp::min;
 use std::path::Path;
 use std::collections::HashMap;
 use sha1::{Sha1, Digest};
-use crate::utils::{log, LogLevel};
+use crate::utils::log::{log, LogLevel};
 
 const CHUNK_SIZE: usize = 1024 * 1024; // 1MB: read files in chunks for efficiency
 

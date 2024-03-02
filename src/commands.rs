@@ -2,8 +2,10 @@
 
 use crate::builder::Target;
 use crate::global_cfg::GlobalConfig;
-use crate::utils::{self, BuildConfig, TargetConfig, OSConfig, QemuConfig, Package, log, LogLevel};
-use crate::features;
+use crate::parser::{self, BuildConfig, TargetConfig, OSConfig, QemuConfig};
+use crate::utils::log::{log, LogLevel};
+use crate::utils::env;
+use crate::utils::features;
 use std::path::Path;
 use std::io::Write;
 use std::fs;
@@ -17,7 +19,6 @@ static OBJ_DIR: &str = "ruxgo_bld/obj_win32";
 #[cfg(target_os = "linux")]
 static OBJ_DIR: &str = "ruxgo_bld/obj_linux";
 static TARGET_DIR: &str = "ruxgo_bld/target";
-static PACKAGES_DIR: &str = "ruxgo_bld/packages";
 
 // OSConfig hash file
 static OSCONFIG_HASH_FILE: &str = "ruxgo_bld/os_config.hash";
@@ -56,9 +57,8 @@ lazy_static! {
 /// # Arguments
 /// * `targets` - A vector of targets to clean
 /// * `os_config` - The local os configuration
-/// * `packages` - A vector of packages to clean
 /// * `choices` - A vector of choices to select which components to delete
-pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<Package>, choices: Vec<String>) {
+pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, choices: Vec<String>) {
     // Helper function to remove a directory or a file and log the result
     let remove_dir = |dir_path: &str| {
         if Path::new(dir_path).exists() {
@@ -133,42 +133,11 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
                 remove_file(&elf_name);
             }
         }
-        // removes bins of packages if have
-        for pack in packages {
-            for target in &pack.target_configs {
-                #[cfg(target_os = "windows")]
-                let hash_path = format!("ruxgo_bld/{}.win32.hash", &target.name);
-                #[cfg(target_os = "linux")]
-                let hash_path = format!("ruxgo_bld/{}.linux.hash", &target.name);
-                remove_file(&hash_path);
-                if Path::new(BIN_DIR).exists() {
-                    let mut bin_name = format!("{}/{}", BIN_DIR, target.name);
-                    #[cfg(target_os = "windows")]
-                    match target.typ.as_str() {
-                        "dll" => bin_name.push_str(".dll"),
-                        _ => (),
-                    }
-                    #[cfg(target_os = "linux")]
-                    match target.typ.as_str() {
-                        "dll" => bin_name.push_str(".so"),
-                        "static" => bin_name.push_str(".a"),
-                        "object" => bin_name.push_str(".o"),
-                        _ => (),
-                    }
-                    remove_file(&bin_name);
-                }
-            }
-        }
     }
 
     // Removes obj if choices includes "Obj" or choices includes "All"
     if choices.contains(&String::from("Obj")) || choices.contains(&String::from("All")) {
         remove_dir(OBJ_DIR);
-    }
-
-    // Removes downloaded packages if choices includes "Packages" or choices includes "All"
-    if choices.contains(&String::from("Packages")) || choices.contains(&String::from("All")) {
-        remove_dir(PACKAGES_DIR);
     }
 
     // Removes all if choices includes "All"
@@ -184,14 +153,12 @@ pub fn clean(targets: &Vec<TargetConfig>, os_config: &OSConfig, packages: &Vec<P
 /// * `os_config` - The local os configuration
 /// * `gen_cc` - Whether to generate a compile_commands.json file
 /// * `gen_vsc` - Whether to generate a .vscode/c_cpp_properties.json file
-/// * `packages` - A vector of packages to get libs
 pub fn build(
     build_config: &BuildConfig, 
     targets: &Vec<TargetConfig>, 
     os_config: &OSConfig,
     gen_cc: bool, 
     gen_vsc: bool, 
-    packages: &Vec<Package>
 ) {
     if !Path::new(BUILD_DIR).exists() {
         fs::create_dir(BUILD_DIR).unwrap_or_else(|why| {
@@ -224,12 +191,7 @@ pub fn build(
                 std::process::exit(1);
             });
 
-        let mut inc_dirs: Vec<String> = targets.iter().flat_map(|t| t.include_dir.clone()).collect();
-        for package in packages {
-            for target in &package.target_configs {
-                inc_dirs.extend(target.include_dir.clone());
-            }
-        }
+        let inc_dirs: Vec<String> = targets.iter().flat_map(|t| t.include_dir.clone()).collect();
         let compiler_path: String = build_config.compiler.read().unwrap().clone();
         let mut intellimode: String = String::new();
         if compiler_path == "gcc" || compiler_path == "g++" {
@@ -354,7 +316,7 @@ pub fn build(
 
     // Constructs each target separately based on the os_config changes.
     for target in targets {
-        let mut tgt = Target::new(build_config, os_config, target, targets, packages);
+        let mut tgt = Target::new(build_config, os_config, target, targets);
 
         let needs_relink = config_changed && target.typ == "exe";
         tgt.build(gen_cc, needs_relink);
@@ -454,8 +416,7 @@ fn build_ruxlibc(build_config: &BuildConfig, os_config: &OSConfig, gen_cc: bool)
         deps: Vec::new(),
     };
     let ulib_targets = Vec::new();
-    let ulib_packages = Vec::new();
-    let mut tgt = Target::new(build_config, os_config, &ulib_tgt, &ulib_targets, &ulib_packages);
+    let mut tgt = Target::new(build_config, os_config, &ulib_tgt, &ulib_targets);
     tgt.build(gen_cc, false);
 }
 
@@ -538,16 +499,14 @@ fn build_ruxmusl(build_config: &BuildConfig, os_config: &OSConfig) {
 /// * `build_config` - The local build configuration
 /// * `exe_target` - The exe target to run
 /// * `targets` - A vector of targets
-/// * `packages` - A vector of packages
 pub fn run (
     bin_args: Option<Vec<&str>>, 
     build_config: &BuildConfig, 
     os_config: &OSConfig,
     exe_target: &TargetConfig, 
-    targets: &Vec<TargetConfig>, 
-    packages: &Vec<Package>
+    targets: &Vec<TargetConfig>
 ) {
-    let trgt = Target::new(build_config, os_config, exe_target, targets, packages);
+    let trgt = Target::new(build_config, os_config, exe_target, targets);
     if !Path::new(&trgt.bin_path).exists() {
         log(LogLevel::Error, &format!("Could not find binary: {}", &trgt.bin_path));
         std::process::exit(1);
@@ -894,9 +853,9 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
 }
 
 /// Parses the config file of local project
-pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>) {
+pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>) {
     #[cfg(target_os = "linux")]
-    let (build_config, os_config, targets) = utils::parse_config("./config_linux.toml", true);
+    let (build_config, os_config, targets) = parser::parse_config("./config_linux.toml", true);
     #[cfg(target_os = "windows")]
     let (build_config, os_config, targets) = utils::parse_config("./config_win32.toml", true);
 
@@ -905,13 +864,11 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
     if targets.is_empty() {
         log(LogLevel::Error, "No targets in config");
         std::process::exit(1);
-    } else {
-        // Allow only one exe and set it as the exe_target
-        for target in &targets {
-            if target.typ == "exe" {
-                num_exe += 1;
-                exe_target = Some(target);
-            }
+    }
+    for target in &targets {
+        if target.typ == "exe" {
+            num_exe += 1;
+            exe_target = Some(target);
         }
     }
     if num_exe != 1 || exe_target.is_none() {
@@ -919,15 +876,10 @@ pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>, Vec<Package>
         std::process::exit(1);
     }
 
-    #[cfg(target_os = "linux")]
-    let packages = Package::parse_packages("./config_linux.toml");
-    #[cfg(target_os = "windows")]
-    let packages = Package::parse_packages("./config_win32.toml");
-
     // Add environment config
-    utils::config_env(&os_config);
+    env::config_env(&os_config);
 
-    (build_config, os_config, targets, packages)
+    (build_config, os_config, targets)
 }
 
 pub fn pre_gen_cc() {

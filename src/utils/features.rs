@@ -1,4 +1,7 @@
-use crate::utils::{OSConfig, log, LogLevel};
+//! Features Module
+
+use crate::parser::OSConfig;
+use crate::utils::log::{log, LogLevel};
 
 pub fn cfg_feat(os_config: &OSConfig) -> (Vec<String>, Vec<String>) {
     let mut lib_features = vec![
