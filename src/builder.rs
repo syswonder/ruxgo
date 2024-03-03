@@ -649,8 +649,6 @@ impl<'a> Target<'a> {
             log(LogLevel::Error, &format!("Could not read directory: {}", root_path));
             std::process::exit(1);
         });
-
-        // Convert src_only and src_exclude to a Vec<&str> for easier comparison
         let src_only: Vec<&str> = self.target_config.src_only.iter().map(AsRef::as_ref).collect();
         let src_exclude: Vec<&str> = self.target_config.src_exclude.iter().map(AsRef::as_ref).collect();
 
@@ -658,14 +656,12 @@ impl<'a> Target<'a> {
         for entry in root_entries {
             let entry = entry.unwrap();
             let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
-
             // Exclusion logic: Check if the path is in src_exclude
             let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
             if exclude {
                 log(LogLevel::Debug, &format!("Excluding (in src_exclude): {}", path));
                 continue;
             }
-
             if entry.path().is_dir() {
                 srcs.append(&mut self.get_srcs(&path));
             } else {
@@ -675,12 +671,10 @@ impl<'a> Target<'a> {
                 } else {
                     true // If src_only is empty, include all
                 };
-
                 if !include {
                     log(LogLevel::Debug, &format!("Excluding (not in src_only): {}", path));
                     continue;
                 }
-
                 if path.ends_with(".cpp") || path.ends_with(".c") {
                     self.add_src(path);
                 }
@@ -726,23 +720,26 @@ impl<'a> Target<'a> {
             if include_substrings.is_empty() {
                 return result;
             }
-            for include_substring in include_substrings {
-                let mut dep_paths = Vec::new();
-                self.target_config.include_dir.iter().for_each(|include| {
-                    let dep_path = format!("{}/{}", include, &include_substring);
-                    dep_paths.push(dep_path.clone());
-                });
-                if self.dependant_includes.contains_key(&include_substring) {
-                    continue;
+            let dep_paths: Vec<String> = include_substrings.par_iter().flat_map(|include_substring| {
+                self.target_config.include_dir.par_iter().filter_map(move |include| {
+                    let dep_path = format!("{}/{}", include, include_substring);
+                    if Path::new(&dep_path).is_file() {
+                        Some(dep_path)
+                    } else {
+                        None
+                    }
+                })
+            }).collect();
+
+            for dep_path in dep_paths {
+                if !self.dependant_includes.contains_key(dep_path.as_str()) {
+                    result.push(dep_path.clone());
+                    self.dependant_includes.insert(dep_path.clone(), result.clone());
+                    let mut recursive_includes = self.get_dependant_includes(&dep_path);
+                    result.append(&mut recursive_includes);
                 }
-                // append current includes
-                result.extend(dep_paths.clone());
-                self.dependant_includes.insert(include_substring, result.clone()); 
-                // append recursive includes
-                dep_paths.iter().for_each(|dep_path| result.append(&mut self.get_dependant_includes(dep_path)))
             }
-            //log(LogLevel::Debug, &format!("dependant_includes: {:#?}", self.dependant_includes));
-        };
+        }
         result.into_iter().unique().collect()
     }
 
@@ -750,7 +747,8 @@ impl<'a> Target<'a> {
     fn get_include_substrings(&self, path: &str) -> Option<Vec<String>> {
         let file = std::fs::File::open(path);
         if file.is_err() {
-            log(LogLevel::Warn, &format!("Failed to get include substrings for file: {}", path));
+            // If the software is self-developed, enable this debug option
+            //log(LogLevel::Debug, &format!("Failed to get include substrings for file: {}", path));
             return None;
         }
         let mut file = file.unwrap();

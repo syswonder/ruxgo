@@ -67,7 +67,7 @@ impl Hasher {
         if path_hash.contains_key(path) {
             return Some(path_hash.get(path).unwrap().to_string());
         }
-        return None;
+        None
     }
 
     /// Loads the hashes from a file and returns them as a hashmap.
@@ -91,7 +91,7 @@ impl Hasher {
             let hash = split.next().unwrap();
             path_hash.insert(path.to_string(), hash.to_string());
         }
-        return path_hash;
+        path_hash
     }
 
     /// Saves the hashes to a file.
@@ -173,7 +173,6 @@ impl Hasher {
         if hash != new_hash {
             log(LogLevel::Info, &format!("File changed, updating hash for file: {}", path));
             path_hash.insert(path.to_string(), new_hash);
-            return;
         }
     }
 }
