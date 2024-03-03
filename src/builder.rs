@@ -134,8 +134,8 @@ impl<'a> Target<'a> {
                 std::process::exit(1);
             }
             log(LogLevel::Info, &format!("Adding dependant lib: {}", dep_lib.target_config.name));
-            if !dep_lib.target_config.name.starts_with("lib") {
-                log(LogLevel::Error, "Dependant lib name must start with lib");
+            if dep_lib.target_config.typ == "dll" && !dep_lib.target_config.name.starts_with("lib") {
+                log(LogLevel::Error, "Dependant dll lib name must start with lib");
                 log(LogLevel::Error, &format!("Target: {} does not start with lib", dep_lib.target_config.name));
                 std::process::exit(1);
             } 
@@ -510,9 +510,6 @@ impl<'a> Target<'a> {
                 cmd.push_str(obj);
             }
             cmd.push_str(" ");
-            cmd.push_str(&self.target_config.ldflags);
-            cmd.push_str(" ");
-
             // link other dependant libraries
             for dep_target in dep_targets {
                 if dep_target.target_config.typ == "object" || dep_target.target_config.typ == "static" {
@@ -535,6 +532,7 @@ impl<'a> Target<'a> {
                     cmd.push_str(" ");
                 }
             }
+            cmd.push_str(&self.target_config.ldflags);
         }
 
         (cmd, cmd_bin)
@@ -661,17 +659,6 @@ impl<'a> Target<'a> {
             let entry = entry.unwrap();
             let path = entry.path().to_str().unwrap().to_string().replace("\\", "/"); // if windows's path
 
-            // Inclusion logic: Check if the path is in src_only
-            let include = if !src_only.is_empty() {
-                src_only.iter().any(|&included| path.contains(included))
-            } else {
-                true // If src_only is empty, include all
-            };
-            if !include {
-                log(LogLevel::Debug, &format!("Excluding (not in src_only): {}", path));
-                continue;
-            }
-
             // Exclusion logic: Check if the path is in src_exclude
             let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
             if exclude {
@@ -682,10 +669,21 @@ impl<'a> Target<'a> {
             if entry.path().is_dir() {
                 srcs.append(&mut self.get_srcs(&path));
             } else {
-                if !path.ends_with(".cpp") && !path.ends_with(".c") {
+                // Inclusion logic: Apply src_only logic only to files
+                let include = if !src_only.is_empty() {
+                    src_only.iter().any(|&included| path.contains(included))
+                } else {
+                    true // If src_only is empty, include all
+                };
+
+                if !include {
+                    log(LogLevel::Debug, &format!("Excluding (not in src_only): {}", path));
                     continue;
                 }
-                self.add_src(path);
+
+                if path.ends_with(".cpp") || path.ends_with(".c") {
+                    self.add_src(path);
+                }
             }
         }
 
@@ -715,6 +713,7 @@ impl<'a> Target<'a> {
         obj_name.push_str(OBJ_DIR);
         obj_name.push_str("/");
         obj_name.push_str(&self.target_config.name);
+        obj_name.push_str("-");
         obj_name.push_str(src_name);
         obj_name.push_str(".o");
         obj_name
@@ -900,7 +899,7 @@ impl Src {
             if stderr.len() > 0 {
                 return Some(stderr.to_string());
             }
-            return None;
+            None
         } else {
             log(LogLevel::Error, &format!("  Error: {}", &self.name));
             log(LogLevel::Error, &format!("  Command: {}", &cmd));
