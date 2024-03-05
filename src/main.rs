@@ -1,11 +1,11 @@
-use ruxgo::parser::OSConfig;
-use ruxgo::utils::log::{log, LogLevel};
-use ruxgo::commands;
 use clap::{Parser, Subcommand};
+use dialoguer::MultiSelect;
 use directories::ProjectDirs;
+use ruxgo::commands;
 use ruxgo::global_cfg::GlobalConfig;
 use ruxgo::packages;
-use dialoguer::MultiSelect;
+use ruxgo::parser::OSConfig;
+use ruxgo::utils::log::{log, LogLevel};
 use std::env;
 use std::path::PathBuf;
 
@@ -120,7 +120,7 @@ license = "NONE"
     let args = CLIArgs::parse();
 
     if let Some(ref path_buf) = args.path {
-        if let Err(e) = env::set_current_dir(&path_buf) {
+        if let Err(e) = env::set_current_dir(path_buf) {
             eprintln!("Error path: {}", e);
         }
     }
@@ -141,21 +141,36 @@ license = "NONE"
                     commands::init_project(&name, Some(false), &global_config);
                 }
             }
-            Some(Commands::Pkg { list, pull, run, update, clean, clean_all }) => {
+            Some(Commands::Pkg {
+                list,
+                pull,
+                run,
+                update,
+                clean,
+                clean_all,
+            }) => {
                 if list {
-                    packages::list_packages().await.expect("Failed to list packages");
+                    packages::list_packages()
+                        .await
+                        .expect("Failed to list packages");
                 }
                 if let Some(pkg_name) = pull {
-                    packages::pull_packages(&pkg_name).await.expect("Failed to pull package");
+                    packages::pull_packages(&pkg_name)
+                        .await
+                        .expect("Failed to pull package");
                 }
                 if let Some(app_name) = run {
                     packages::run_app(&app_name).expect("Failed to run app-bin");
                 }
                 if let Some(pkg_name) = update {
-                    packages::update_package(&pkg_name).await.expect("Failed to update package");
+                    packages::update_package(&pkg_name)
+                        .await
+                        .expect("Failed to update package");
                 }
                 if let Some(pkg_name) = clean {
-                    packages::clean_package(&pkg_name).await.expect("Failed to clean package");
+                    packages::clean_package(&pkg_name)
+                        .await
+                        .expect("Failed to clean package");
                 }
                 if clean_all {
                     let items = vec!["All", "App-bin", "App-src", "Kernel", "Cache"];
@@ -165,20 +180,25 @@ license = "NONE"
                         .items(&items)
                         .defaults(&defaults)
                         .interact_opt()
-                        .unwrap_or_else(|_| None)
-                        .unwrap_or_else(|| Vec::new())
+                        .unwrap_or(None)
+                        .unwrap_or_default()
                         .iter()
                         .map(|&index| String::from(items[index]))
                         .collect();
                     log(LogLevel::Log, "Cleaning packages...");
-                    packages::clean_all_packages(choices).await.expect("Failed to clean choice packages");
+                    packages::clean_all_packages(choices)
+                        .await
+                        .expect("Failed to clean choice packages");
                 }
             }
             Some(Commands::Config { parameter, value }) => {
                 let parameter = parameter.as_str();
                 let value = value.as_str();
                 GlobalConfig::set_defaults(&config, parameter, value);
-                log(LogLevel::Log, format!("Setting {} to {}", parameter, value).as_str());
+                log(
+                    LogLevel::Log,
+                    format!("Setting {} to {}", parameter, value).as_str(),
+                );
                 std::process::exit(0);
             }
             None => {
@@ -216,8 +236,8 @@ license = "NONE"
             .items(&items)
             .defaults(&defaults)
             .interact_opt()
-            .unwrap_or_else(|_| None)
-            .unwrap_or_else(|| Vec::new())
+            .unwrap_or(None)
+            .unwrap_or_default()
             .iter()
             .map(|&index| String::from(items[index]))
             .collect();
@@ -234,7 +254,8 @@ license = "NONE"
 
     if args.run {
         let (build_config, os_config, targets) = commands::parse_config();
-        let bin_args: Option<Vec<&str>> = args.bin_args
+        let bin_args: Option<Vec<&str>> = args
+            .bin_args
             .as_ref()
             .map(|x| x.iter().map(|x| x.as_str()).collect());
 

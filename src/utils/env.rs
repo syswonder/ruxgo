@@ -3,7 +3,7 @@
 use crate::parser::{OSConfig, PlatformConfig, QemuConfig};
 
 // This function is used to configure environment variables
-pub fn config_env(os_config: &OSConfig,) {
+pub fn config_env(os_config: &OSConfig) {
     if os_config != &OSConfig::default() && os_config.platform != PlatformConfig::default() {
         std::env::set_var("RUX_ARCH", &os_config.platform.arch);
         std::env::set_var("RUX_PLATFORM", &os_config.platform.name);

@@ -1,0 +1,59 @@
+[build]
+compiler = "gcc"
+
+## Parser
+[[targets]]
+name = "lib-Parser"
+src = "./Parser"
+include_dir = ["./Include/internal", ".", "./Include"]
+type = "object"
+cflags = "-UHAVE_STD_ATOMIC -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -std=c99 -Wextra -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden -DPy_BUILD_CORE"
+ldflags = "-r"
+
+## Objects
+[[targets]]
+name = "lib-Object"
+src = "./Objects"
+include_dir = ["./Include/internal", ".", "./Include"]
+type = "object"
+cflags = "-Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -std=c99 -Wextra -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden -DPy_BUILD_CORE"
+ldflags = "-r"
+
+## Python
+[[targets]]
+name = "lib-Python"
+src = "./Python"
+src_exclude = ["dup2.c","dynload_aix.c","dynload_dl.c","dynload_hpux.c",
+        "dynload_stub.c","dynload_win.c","strdup.c"]
+include_dir = ["./Include/internal", ".", "./Include"]
+type = "object"
+cflags = "-Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -std=c99 -Wextra -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden -DPy_BUILD_CORE -DSOABI='\"cpython-39-x86_64-linux-gnu\"' -DPLATLIBDIR='\"lib\"'"
+ldflags = "-r"
+
+## Modules
+[[targets]]
+name = "lib-Modules"
+src = "./Modules"
+src_only = ["getbuildinfo.c","config.c","getpath.c","main.c","gcmodule.c","posixmodule.c",
+            "errnomodule.c","/pwdmodule.c","_sre.c","_codecsmodule.c","_weakref.c",
+            "_functoolsmodule.c","_operator.c","_collectionsmodule.c","_abc.c",
+            "itertoolsmodule.c","atexitmodule.c","signalmodule.c","_stat.c","timemodule.c",
+            "_threadmodule.c","_localemodule.c","_iomodule.c","iobase.c","fileio.c",
+            "bytesio.c","bufferedio.c","textio.c","stringio.c","faulthandler.c",
+            "_tracemalloc.c","_peg_parser.c","symtablemodule.c","xxsubtype.c","frozen.c"
+            ]
+include_dir = ["./Include/internal", ".", "./Include","./Modules/_io"]
+type = "object"
+cflags = "-Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -std=c99 -Wextra -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden -DPy_BUILD_CORE -DPy_BUILD_CORE_BUILTIN -DPYTHONPATH='\"\"' -DPREFIX='\"/usr/local\"' -DEXEC_PREFIX='\"/usr/local\"' -DVERSION='\"3.9\"' -DVPATH='\"\"'"
+ldflags = "-r"
+
+# python-exe
+[[targets]]
+name = "python"
+src = "./Programs"
+src_only = ["python.c"]
+include_dir = "./"
+type = "exe"
+cflags = "-Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -std=c99 -Wextra -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden -DPy_BUILD_CORE"
+ldflags = "-Xlinker -export-dynamic -lcrypt -ldl -lm"
+deps = ["lib-Parser","lib-Object","lib-Python","lib-Modules"]

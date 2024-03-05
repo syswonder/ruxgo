@@ -1,7 +1,7 @@
 //! Log Module
 
-use std::sync::{RwLock, Once};
 use colored::Colorize;
+use std::sync::{Once, RwLock};
 
 static INIT: Once = Once::new();
 static LOG_LEVEL: RwLock<LogLevel> = RwLock::new(LogLevel::Info);

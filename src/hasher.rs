@@ -1,12 +1,13 @@
 //! This module contains functions for hashing files and checking if they have changed.
 
+use crate::utils::log::{log, LogLevel};
+use sha1::{Digest, Sha1};
+use std::cmp::min;
+use std::collections::HashMap;
+use std::fmt::Write as OtherWrite;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::cmp::min;
 use std::path::Path;
-use std::collections::HashMap;
-use sha1::{Sha1, Digest};
-use crate::utils::log::{log, LogLevel};
 
 const CHUNK_SIZE: usize = 1024 * 1024; // 1MB: read files in chunks for efficiency
 
@@ -26,7 +27,10 @@ impl Hasher {
         let mut limit = match file.metadata() {
             Ok(metadata) => metadata.len(),
             Err(why) => {
-                log(LogLevel::Error, &format!("Failed to get length for file: {}", path));
+                log(
+                    LogLevel::Error,
+                    &format!("Failed to get length for file: {}", path),
+                );
                 log(LogLevel::Error, &format!("Error: {}", why));
                 return None;
             }
@@ -34,19 +38,27 @@ impl Hasher {
 
         let mut buffer = [0; CHUNK_SIZE];
         let mut hasher = Sha1::new();
-    
+
         while limit > 0 {
             let read_size = min(limit as usize, CHUNK_SIZE);
             match file.read(&mut buffer[0..read_size]) {
                 Ok(read) if read > 0 => {
                     hasher.update(&buffer[0..read]);
                     limit -= read as u64;
-                },
+                }
                 _ => break,
             }
         }
 
-        Some(hasher.finalize().iter().map(|byte| format!("{:02x}", byte)).collect())
+        Some(
+            hasher
+                .finalize()
+                .iter()
+                .fold(String::new(), |mut acc, &byte| {
+                    write!(acc, "{:02x}", byte).expect("Unable to write");
+                    acc
+                }),
+        )
     }
 
     /// Hashes a string and returns the hash as a string.
@@ -55,7 +67,15 @@ impl Hasher {
     pub fn hash_string(content: &str) -> String {
         let mut hasher = Sha1::new();
         hasher.update(content.as_bytes());
-        hasher.finalize().iter().map(|byte| format!("{:02x}", byte)).collect()
+        let result = hasher
+            .finalize()
+            .iter()
+            .fold(String::new(), |mut acc, &byte| {
+                write!(acc, "{:02x}", byte).expect("Unable to write to String");
+                acc
+            });
+
+        result
     }
 
     /// Returns the hash of a file if it exists in the path_hash.
@@ -86,7 +106,7 @@ impl Hasher {
             if line.is_empty() {
                 continue;
             }
-            let mut split = line.split(" ");
+            let mut split = line.split(' ');
             let path = split.next().unwrap();
             let hash = split.next().unwrap();
             path_hash.insert(path.to_string(), hash.to_string());
@@ -99,13 +119,17 @@ impl Hasher {
     /// * `path` - The path of the file to save the hashes to.
     /// * `path_hash` - The hashmap of paths and hashes.
     pub fn save_hashes_to_file(path: &str, path_hash: &HashMap<String, String>) {
-        let mut file = OpenOptions::new().write(true).create(true).open(path).unwrap_or_else(|_| {
-            log(LogLevel::Error, &format!("Failed to open file: {}", path));
-            std::process::exit(1);
-        });
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(path)
+            .unwrap_or_else(|_| {
+                log(LogLevel::Error, &format!("Failed to open file: {}", path));
+                std::process::exit(1);
+            });
         for (path, hash) in path_hash {
             let line = format!("{} {}\n", path, hash);
-            file.write(line.as_bytes()).unwrap();
+            file.write_all(line.as_bytes()).unwrap();
         }
     }
 
@@ -114,10 +138,17 @@ impl Hasher {
     /// * `path` - The path of the file to save the string hash to.
     /// * `hash` - The string hash value.
     pub fn save_hash_to_file(path: &str, hash: &str) {
-        let mut file = OpenOptions::new().write(true).create(true).open(path).unwrap_or_else(|_| {
-            log(LogLevel::Error, &format!("Failed to open hash file: {}", path));
-            std::process::exit(1);
-        });
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(path)
+            .unwrap_or_else(|_| {
+                log(
+                    LogLevel::Error,
+                    &format!("Failed to open hash file: {}", path),
+                );
+                std::process::exit(1);
+            });
         file.write_all(hash.as_bytes()).unwrap();
     }
 
@@ -133,7 +164,10 @@ impl Hasher {
             file.read_to_string(&mut hash).unwrap();
             hash
         } else {
-            log(LogLevel::Warn, &format!("Failed to open hash file '{}'", path));
+            log(
+                LogLevel::Warn,
+                &format!("Failed to open hash file '{}'", path),
+            );
             std::process::exit(1);
         }
     }
@@ -171,7 +205,10 @@ impl Hasher {
         }
         let hash = hash.unwrap();
         if hash != new_hash {
-            log(LogLevel::Info, &format!("File changed, updating hash for file: {}", path));
+            log(
+                LogLevel::Info,
+                &format!("File changed, updating hash for file: {}", path),
+            );
             path_hash.insert(path.to_string(), new_hash);
         }
     }

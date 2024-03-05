@@ -10,16 +10,16 @@
 pub mod builder;
 /// Contains code that handles various CLI flags
 pub mod commands;
-/// Contains logger, config parser and environment config
-pub mod utils;
-/// Contains hashing related functions
-pub mod hasher;
 /// Handles global config
 pub mod global_cfg;
+/// Contains hashing related functions
+pub mod hasher;
 /// Contains packages management related functions
 pub mod packages;
 /// Contains parse related functions
 pub mod parser;
+/// Contains logger, config parser and environment config
+pub mod utils;
 
 #[macro_use]
 extern crate lazy_static;

@@ -1,18 +1,19 @@
 //! This module contains code related to package management.
 
-use reqwest;
-use toml;
-use bytes::Bytes;
 use crate::utils::log::{log, LogLevel};
+use bytes::Bytes;
 use colored::Colorize;
-use std::{fs, fmt};
+use reqwest;
+use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::os::unix::fs::PermissionsExt;
-use serde::{Serialize, Deserialize};
-use std::error::Error;
+use std::{fmt, fs};
+use toml;
 
-static PACKAGES_URL: &str = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
+static PACKAGES_URL: &str =
+    "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Ybeichen/ruxos-pkgs/master/";
 static SYSWONDER_URL: &str = "https://mirror.ghproxy.com/https://github.com/syswonder";
 static PKG_DIR: &str = "ruxgo_pkg";
 static BIN_DIR: &str = "ruxgo_pkg/app-bin";
@@ -57,7 +58,7 @@ struct PackageInfo {
     name: String,
     branch: String,
     version: String,
-    description: String
+    description: String,
 }
 
 /// Struct descibing the Package list
@@ -74,7 +75,10 @@ async fn fetch_url(url: &str) -> Result<String, Box<dyn Error>> {
     })?;
 
     resp.text().await.map_err(|err| {
-        log(LogLevel::Error, &format!("Failed to read response text: {}", err));
+        log(
+            LogLevel::Error,
+            &format!("Failed to read response text: {}", err),
+        );
         Box::new(err) as Box<dyn Error>
     })
 }
@@ -91,7 +95,10 @@ async fn fetch_binary(url: &str) -> Result<Bytes, Box<dyn Error>> {
     }
 
     resp.bytes().await.map_err(|err| {
-        log(LogLevel::Error, &format!("Failed to read response bytes: {}", err));
+        log(
+            LogLevel::Error,
+            &format!("Failed to read response bytes: {}", err),
+        );
         Box::new(err) as Box<dyn Error>
     })
 }
@@ -102,11 +109,20 @@ pub async fn list_packages() -> Result<(), Box<dyn Error>> {
 
     // print the information of each package
     println!("{:-<1$}", "", 97);
-    println!("{:<10} {:<30} {:<10} {:<22} {:<25}", "TYPE".bold(), "NAME".bold(), "BRANCH".bold(), "VERSION".bold(), "DESCRIPTION".bold());
+    println!(
+        "{:<10} {:<30} {:<10} {:<22} {:<25}",
+        "TYPE".bold(),
+        "NAME".bold(),
+        "BRANCH".bold(),
+        "VERSION".bold(),
+        "DESCRIPTION".bold()
+    );
     println!("{:-<1$}", "", 97);
     for pkg in pkgs {
-        println!("{:<10} {:<30} {:<10} {:<22} {:<25}",
-        pkg.typ, pkg.name, pkg.branch, pkg.version, pkg.description);
+        println!(
+            "{:<10} {:<30} {:<10} {:<22} {:<25}",
+            pkg.typ, pkg.name, pkg.branch, pkg.version, pkg.description
+        );
     }
     println!("{:-<1$}", "", 97);
 
@@ -119,10 +135,11 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
     let pkgs = load_or_refresh_packages(false).await?;
 
     // find the specified package
-    let pkg_info = pkgs.iter().find(|pkg| pkg.name == pkg_name).ok_or_else(|| {
-        format!("Package '{}' not found", pkg_name)
-    })?;
-    
+    let pkg_info = pkgs
+        .iter()
+        .find(|pkg| pkg.name == pkg_name)
+        .ok_or_else(|| format!("Package '{}' not found", pkg_name))?;
+
     // handle different types of packages
     match pkg_info.typ {
         PackageType::AppBin => {
@@ -134,13 +151,19 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
             }
             let bin_path = bin_dir.join(pkg_name);
             fs::write(bin_path, &bytes)?;
-            log(LogLevel::Log, &format!("Package '{}' pulled successfully!", pkg_name));
+            log(
+                LogLevel::Log,
+                &format!("Package '{}' pulled successfully!", pkg_name),
+            );
             // pull its script
             pull_script(pkg_name).await.map_err(|err| {
-                log(LogLevel::Error, &format!("Failed to pull script for '{}': {}", pkg_name, err));
+                log(
+                    LogLevel::Error,
+                    &format!("Failed to pull script for '{}': {}", pkg_name, err),
+                );
                 err
             })?;
-        },
+        }
         PackageType::AppSrc | PackageType::Kernel => {
             // pull the package from github
             let url = format!("{}/{}", SYSWONDER_URL, pkg_name);
@@ -156,7 +179,10 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
 
             if let Ok(status) = status {
                 if status.success() {
-                    log(LogLevel::Log, &format!("Package '{}' pulled successfully!", pkg_name));
+                    log(
+                        LogLevel::Log,
+                        &format!("Package '{}' pulled successfully!", pkg_name),
+                    );
                 } else {
                     log(LogLevel::Error, "git clone command failed");
                     std::process::exit(1);
@@ -165,7 +191,7 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
                 log(LogLevel::Error, "Failed to run git clone command");
                 std::process::exit(1);
             }
-        },
+        }
         PackageType::Unknown => {
             return Err(format!("Unknown package type: {}", pkg_info.typ).into())
         }
@@ -177,9 +203,12 @@ pub async fn pull_packages(pkg_name: &str) -> Result<(), Box<dyn Error>> {
 /// Updates the specified package
 pub async fn update_package(pkg_name: &str) -> Result<(), Box<dyn Error>> {
     load_or_refresh_packages(true).await?;
-    let _ = clean_package(pkg_name).await?;
-    let _ = pull_packages(pkg_name).await?;
-    log(LogLevel::Log, &format!("Package '{}' updated successfully!", pkg_name));
+    clean_package(pkg_name).await?;
+    pull_packages(pkg_name).await?;
+    log(
+        LogLevel::Log,
+        &format!("Package '{}' updated successfully!", pkg_name),
+    );
 
     Ok(())
 }
@@ -187,36 +216,49 @@ pub async fn update_package(pkg_name: &str) -> Result<(), Box<dyn Error>> {
 /// Cleans the specified package
 pub async fn clean_package(pkg_name: &str) -> Result<(), Box<dyn Error>> {
     let pkgs = load_or_refresh_packages(false).await?;
-    let pkg_info = pkgs.iter().find(|pkg| pkg.name == pkg_name).ok_or_else(|| {
-        format!("Package '{}' not found", pkg_name)
-    })?;
+    let pkg_info = pkgs
+        .iter()
+        .find(|pkg| pkg.name == pkg_name)
+        .ok_or_else(|| format!("Package '{}' not found", pkg_name))?;
     match pkg_info.typ {
         PackageType::AppBin => {
             let bin_path = PathBuf::from(BIN_DIR).join(pkg_name);
             if bin_path.exists() {
                 fs::remove_file(bin_path)?;
-                log(LogLevel::Log, &format!("Binary package '{}' removed successfully!", pkg_name));
+                log(
+                    LogLevel::Log,
+                    &format!("Binary package '{}' removed successfully!", pkg_name),
+                );
             }
             let script_path = PathBuf::from(BIN_DIR).join(format!("{}.sh", pkg_name));
             if script_path.exists() {
                 fs::remove_file(script_path)?;
-                log(LogLevel::Log, &format!("Script for package '{}' removed successfully!", pkg_name));
+                log(
+                    LogLevel::Log,
+                    &format!("Script for package '{}' removed successfully!", pkg_name),
+                );
             }
-        },
+        }
         PackageType::AppSrc => {
             let src_path = PathBuf::from(PKG_DIR).join(pkg_name);
             if src_path.exists() {
                 fs::remove_dir_all(src_path)?;
-                log(LogLevel::Log, &format!("Source package '{}' removed successfully!", pkg_name));
+                log(
+                    LogLevel::Log,
+                    &format!("Source package '{}' removed successfully!", pkg_name),
+                );
             }
-        },
+        }
         PackageType::Kernel => {
             let kernel_path = PathBuf::from(PKG_DIR).join(pkg_name);
             if kernel_path.exists() {
                 fs::remove_dir_all(kernel_path)?;
-                log(LogLevel::Log, &format!("Kernel package '{}' removed successfully!", pkg_name));
+                log(
+                    LogLevel::Log,
+                    &format!("Kernel package '{}' removed successfully!", pkg_name),
+                );
             }
-        },
+        }
         PackageType::Unknown => {
             return Err(format!("Unknown package type: {}", pkg_info.typ).into())
         }
@@ -235,16 +277,16 @@ pub async fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Erro
                 let root_dir_path = Path::new(PKG_DIR);
                 if root_dir_path.exists() {
                     fs::remove_dir_all(root_dir_path)?;
-                    log(LogLevel::Log, &format!("All packages removed successfully!"));
+                    log(LogLevel::Log, "All packages removed successfully!");
                 }
-            },
+            }
             "App-bin" => {
                 let bin_dir_path = Path::new(BIN_DIR);
                 if bin_dir_path.exists() {
                     fs::remove_dir_all(bin_dir_path)?;
-                    log(LogLevel::Log, &format!("App-bin packages removed successfully!"));
+                    log(LogLevel::Log, "App-bin packages removed successfully!");
                 }
-            },
+            }
             "App-src" => {
                 let pkgs = load_or_refresh_packages(false).await?;
                 let root_dir_path = Path::new(PKG_DIR);
@@ -254,13 +296,19 @@ pub async fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Erro
                             let src_path = root_dir_path.join(&pkg.name);
                             if src_path.exists() {
                                 fs::remove_dir_all(src_path)?;
-                                log(LogLevel::Info, &format!("Source package '{}' removed successfully!", pkg.name));
+                                log(
+                                    LogLevel::Info,
+                                    &format!("Source package '{}' removed successfully!", pkg.name),
+                                );
                             }
                         }
                     }
-                    log(LogLevel::Log, "All 'App-src' packages removed successfully!");
+                    log(
+                        LogLevel::Log,
+                        "All 'App-src' packages removed successfully!",
+                    );
                 }
-            },
+            }
             "Kernel" => {
                 let pkgs = load_or_refresh_packages(false).await?;
                 let root_dir_path = Path::new(PKG_DIR);
@@ -270,20 +318,23 @@ pub async fn clean_all_packages(choices: Vec<String>) -> Result<(), Box<dyn Erro
                             let kernel_path = root_dir_path.join(&pkg.name);
                             if kernel_path.exists() {
                                 fs::remove_dir_all(kernel_path)?;
-                                log(LogLevel::Info, &format!("Kernel package '{}' removed successfully!", pkg.name));
+                                log(
+                                    LogLevel::Info,
+                                    &format!("Kernel package '{}' removed successfully!", pkg.name),
+                                );
                             }
                         }
                     }
                     log(LogLevel::Log, "All 'Kernel' packages removed successfully!");
                 }
-            },
+            }
             "Cache" => {
                 let cache_dir_path = Path::new(CACHE_DIR);
                 if cache_dir_path.exists() {
                     fs::remove_dir_all(cache_dir_path)?;
-                    log(LogLevel::Log, &format!("Cache cleaned successfully!"));
+                    log(LogLevel::Log, "Cache cleaned successfully!");
                 }
-            },
+            }
             _ => {
                 log(LogLevel::Error, &format!("Unknown choice: '{}'", choice));
             }
@@ -305,7 +356,13 @@ async fn pull_script(pkg_name: &str) -> Result<(), Box<dyn Error>> {
     let bytes = match fetch_binary(&script_url).await {
         Ok(data) => data,
         Err(_) => {
-            log(LogLevel::Log, &format!("Script for '{}' not found, pulling default script.", pkg_name));
+            log(
+                LogLevel::Log,
+                &format!(
+                    "Script for '{}' not found, pulling default script.",
+                    pkg_name
+                ),
+            );
             let default_script_url = format!("{}/default.sh", PACKAGES_URL);
             fetch_binary(&default_script_url).await?
         }
@@ -317,7 +374,10 @@ async fn pull_script(pkg_name: &str) -> Result<(), Box<dyn Error>> {
     let mut permissions = fs::metadata(&script_path)?.permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(&script_path, permissions)?;
-    log(LogLevel::Log, &format!("Script for '{}' pulled successfully!", pkg_name));
+    log(
+        LogLevel::Log,
+        &format!("Script for '{}' pulled successfully!", pkg_name),
+    );
 
     Ok(())
 }
@@ -340,11 +400,23 @@ pub fn run_app(pkg_name: &str) -> Result<(), Box<dyn Error>> {
         .expect("Failed to execute bash command");
 
     if !output.status.success() {
-        log(LogLevel::Error, &format!("Application '{}' failed to run.", pkg_name));
-        log(LogLevel::Error, &format!("stdout: {}", String::from_utf8_lossy(&output.stdout)));
-        log(LogLevel::Error, &format!("stderr: {}", String::from_utf8_lossy(&output.stderr)));
+        log(
+            LogLevel::Error,
+            &format!("Application '{}' failed to run.", pkg_name),
+        );
+        log(
+            LogLevel::Error,
+            &format!("stdout: {}", String::from_utf8_lossy(&output.stdout)),
+        );
+        log(
+            LogLevel::Error,
+            &format!("stderr: {}", String::from_utf8_lossy(&output.stderr)),
+        );
     } else {
-        log(LogLevel::Log, &format!("Application '{}' ran successfully!", pkg_name));
+        log(
+            LogLevel::Log,
+            &format!("Application '{}' ran successfully!", pkg_name),
+        );
     }
 
     Ok(())
@@ -357,7 +429,7 @@ async fn load_or_refresh_packages(force_refresh: bool) -> Result<Vec<PackageInfo
     // create the cache directory if it doesn't exist
     let cache_dir = Path::new(CACHE_DIR);
     if !cache_dir.exists() {
-        fs::create_dir_all(&cache_dir)?
+        fs::create_dir_all(cache_dir)?
     }
 
     // attempt to read from the cache
@@ -365,11 +437,16 @@ async fn load_or_refresh_packages(force_refresh: bool) -> Result<Vec<PackageInfo
     let mut pkg_list = if pkg_cache.exists() {
         let contents = fs::read_to_string(&pkg_cache)?;
         toml::from_str::<PackageList>(&contents).map_err(|err| {
-            log(LogLevel::Error, &format!("Failed to parse package cache: {}", err));
+            log(
+                LogLevel::Error,
+                &format!("Failed to parse package cache: {}", err),
+            );
             Box::new(err) as Box<dyn Error>
         })?
     } else {
-        PackageList { packages: Vec::new() }
+        PackageList {
+            packages: Vec::new(),
+        }
     };
 
     // If the cache is empty or forced to refresh, the data is updated and the cache is updated
