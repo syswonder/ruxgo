@@ -565,23 +565,27 @@ impl<'a> Target<'a> {
                 cmd.push(' ');
                 cmd.push_str(RUXLIBC_BIN);
                 cmd.push(' ');
+                let mode = if !self.os_config.platform.mode.is_empty() {
+                    &self.os_config.platform.mode
+                } else {
+                    "debug"
+                };
                 cmd.push_str(&format!(
                     "{}/target/{}/{}/{}",
-                    BUILD_DIR,
-                    &self.os_config.platform.target,
-                    &self.os_config.platform.mode,
-                    RUXLIBC_RUST_LIB
+                    BUILD_DIR, &self.os_config.platform.target, mode, RUXLIBC_RUST_LIB
                 ));
             } else if self.os_config.ulib == "ruxmusl" {
                 cmd.push(' ');
                 cmd.push_str(RUXMUSL_BIN);
                 cmd.push(' ');
+                let mode = if !self.os_config.platform.mode.is_empty() {
+                    &self.os_config.platform.mode
+                } else {
+                    "debug"
+                };
                 cmd.push_str(&format!(
                     "{}/target/{}/{}/{}",
-                    BUILD_DIR,
-                    &self.os_config.platform.target,
-                    &self.os_config.platform.mode,
-                    RUXMUSL_RUST_LIB
+                    BUILD_DIR, &self.os_config.platform.target, mode, RUXMUSL_RUST_LIB
                 ));
             }
 
@@ -776,73 +780,42 @@ impl<'a> Target<'a> {
     /// Recursively gets all the source files in the given root path
     /// # Notes
     /// The source is first filtered through the `src_only` and `src_exclude` fields
-    fn get_srcs(&mut self, root_path: &str) -> Vec<Src> {
-        if root_path.is_empty() {
-            return Vec::new();
-        }
-        let root_dir = PathBuf::from(root_path);
-        let mut srcs: Vec<Src> = Vec::new();
-        let root_entries = std::fs::read_dir(root_dir).unwrap_or_else(|_| {
-            log(
-                LogLevel::Error,
-                &format!("Could not read directory: {}", root_path),
-            );
-            std::process::exit(1);
-        });
-        let src_only: Vec<&str> = self
-            .target_config
-            .src_only
-            .iter()
-            .map(AsRef::as_ref)
-            .collect();
-        let src_exclude: Vec<&str> = self
-            .target_config
-            .src_exclude
-            .iter()
-            .map(AsRef::as_ref)
-            .collect();
-
-        // Iterate over all entrys
-        for entry in root_entries {
-            let entry = entry.unwrap();
-            let path = entry
-                .path()
-                .to_str()
-                .unwrap()
-                .to_string()
-                .replace('\\', "/"); // if windows's path
-                                     // Exclusion logic: Check if the path is in src_exclude
-            let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
-            if exclude {
-                log(
-                    LogLevel::Debug,
-                    &format!("Excluding (in src_exclude): {}", path),
-                );
+    fn get_srcs(&mut self, root_path: &str) {
+        for entry in WalkDir::new(root_path).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            let path_str = path.to_str().unwrap_or_default();
+            #[cfg(target_os = "windows")]
+            let path_str = path_str.replace('\\', "/");
+            if self.should_exclude(path_str) {
                 continue;
             }
-            if entry.path().is_dir() {
-                srcs.append(&mut self.get_srcs(&path));
-            } else {
-                // Inclusion logic: Apply src_only logic only to files
-                let include = if !src_only.is_empty() {
-                    src_only.iter().any(|&included| path.contains(included))
-                } else {
-                    true // If src_only is empty, include all
-                };
-                if !include {
-                    log(
-                        LogLevel::Debug,
-                        &format!("Excluding (not in src_only): {}", path),
-                    );
-                    continue;
-                }
-                if path.ends_with(".cpp") || path.ends_with(".c") {
-                    self.add_src(path);
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if (ext == "cpp" || ext == "c") && self.should_include(path_str) {
+                        self.add_src(path_str.to_owned());
+                    }
                 }
             }
         }
+    }
 
-        srcs
+    /// Exclusion logic: Check if the path is in src_exclude
+    fn should_exclude(&self, path: &str) -> bool {
+        self.target_config
+            .src_exclude
+            .iter()
+            .any(|excluded| path.contains(excluded))
+    }
+
+    /// Inclusion logic: Apply src_only logic only to files
+    fn should_include(&self, path: &str) -> bool {
+        if self.target_config.src_only.is_empty() {
+            return true;
+        }
+        self.target_config
+            .src_only
+            .iter()
+            .any(|included| path.contains(included))
     }
 
     /// Adds a source file to the target's srcs field
@@ -867,7 +840,7 @@ impl<'a> Target<'a> {
     fn get_src_obj_name(&self, src_name: &str) -> String {
         let mut obj_name = String::new();
         obj_name.push_str(OBJ_DIR);
-        obj_name.push('-');
+        obj_name.push('/');
         obj_name.push_str(&self.target_config.name);
         obj_name.push('-');
         obj_name.push_str(src_name);
@@ -878,7 +851,7 @@ impl<'a> Target<'a> {
     /// Returns a vector of .h or .hpp files the given C/C++ depends on
     fn get_dependant_includes(&mut self, path: &str) -> Vec<String> {
         let mut result = HashSet::new();
-        //Use the stack to handle recursive paths
+        // Use the stack to handle recursive paths
         let mut to_process = vec![path.to_string()];
         let include_substrings: HashSet<String> = self
             .get_include_substrings(path)

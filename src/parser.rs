@@ -3,12 +3,14 @@
 use crate::builder::Target;
 use crate::utils::log::{log, LogLevel};
 use serde::Serialize;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::default::Default;
 use std::fs::File;
 use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::{io::Read, path::Path};
 use toml::{Table, Value};
+use walkdir::WalkDir;
 
 /// Struct descibing the build config of the local project
 #[derive(Debug, Clone)]
@@ -238,102 +240,137 @@ impl TargetConfig {
     /// # Arguments
     /// * `path` - The path to the src directory
     fn get_src_names(&self, tgt_path: &str) -> Vec<String> {
-        if tgt_path.is_empty() {
-            return Vec::new();
-        }
         let mut src_names = Vec::new();
-        let src_path = Path::new(&tgt_path);
-        let src_entries = std::fs::read_dir(src_path).unwrap_or_else(|_| {
-            log(
-                LogLevel::Error,
-                &format!("Could not read src dir: {}", tgt_path),
-            );
-            std::process::exit(1);
-        });
+        let src_path = Path::new(tgt_path);
 
-        // Convert src_only and src_exclude to Vec<&str> for easier comparison
-        let src_only: Vec<&str> = self.src_only.iter().map(AsRef::as_ref).collect();
-        let src_exclude: Vec<&str> = self.src_exclude.iter().map(AsRef::as_ref).collect();
-
-        // Iterate over all entrys
-        for entry in src_entries {
-            let entry = entry.unwrap();
-            let path = entry
-                .path()
-                .to_str()
-                .unwrap()
-                .to_string()
-                .replace('\\', "/");
-
-            // Inclusion logic: Check if the path is in src_only
-            let include = if !src_only.is_empty() {
-                src_only.iter().any(|&included| path.contains(included))
-            } else {
-                true // If src_only is empty, include all
-            };
-            if !include {
-                log(
-                    LogLevel::Debug,
-                    &format!("Excluding (not in src_only): {}", path),
-                );
-                continue;
-            }
-
-            // Exclusion logic: Check if the path is in src_exclude
-            let exclude = src_exclude.iter().any(|&excluded| path.contains(excluded));
-            if exclude {
-                log(
-                    LogLevel::Debug,
-                    &format!("Excluding (in src_exclude): {}", path),
-                );
-                continue;
-            }
-
-            if entry.path().is_dir() {
-                src_names.append(&mut self.get_src_names(&path));
-            } else if entry.path().is_file() {
-                if !path.ends_with(".cpp") && !path.ends_with(".c") {
-                    continue;
+        let walker = WalkDir::new(src_path)
+            .into_iter()
+            .filter_entry(|e| self.should_include(e.path()) && !self.should_exclude(e.path()));
+        for entry in walker.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if ext == "cpp" || ext == "c" {
+                        if let Some(file_path_str) = path.to_str() {
+                            #[cfg(target_os = "windows")]
+                            let formatted_path_str = file_path_str.replace('\\', "/");
+                            #[cfg(target_os = "linux")]
+                            let formatted_path_str = file_path_str.to_string();
+                            src_names.push(formatted_path_str);
+                        }
+                    }
                 }
-                let file_path = entry.path();
-                let file_path_str = file_path.to_str().unwrap();
-                src_names.push(file_path_str.to_string());
             }
         }
 
         src_names
     }
 
-    /// Rearrange the input targets
-    fn arrange_targets(targets: Vec<TargetConfig>) -> Vec<TargetConfig> {
-        let mut targets = targets.clone();
-        let mut i = 0;
-        while i < targets.len() {
-            let mut j = i + 1;
-            while j < targets.len() {
-                if targets[i].deps.contains(&targets[j].name) {
-                    // Check for circular dependencies
-                    if targets[j].deps.contains(&targets[i].name) {
-                        log(
-                            LogLevel::Error,
-                            &format!(
-                                "Circular dependency found between {} and {}",
-                                targets[i].name, targets[j].name
-                            ),
-                        );
-                        std::process::exit(1);
-                    }
-                    let temp = targets[i].clone();
-                    targets[i] = targets[j].clone();
-                    targets[j] = temp;
-                    i = 0;
-                    break;
-                }
-                j += 1;
-            }
-            i += 1;
+    /// Exclusion logic: Check if the path is in src_exclude
+    fn should_exclude(&self, path: &Path) -> bool {
+        self.src_exclude
+            .iter()
+            .any(|excluded| path.to_str().map_or(false, |p| p.contains(excluded)))
+    }
+
+    /// Inclusion logic: Apply src_only logic only to files
+    fn should_include(&self, path: &Path) -> bool {
+        if self.src_only.is_empty() {
+            return true;
         }
-        targets
+        self.src_only
+            .iter()
+            .any(|included| path.to_str().map_or(false, |p| p.contains(included)))
+    }
+
+    /// Checks for duplicate source files in the target
+    fn check_duplicate_srcs(&self) {
+        let mut src_file_names = self.get_src_names(&self.src);
+        src_file_names.sort_unstable();
+        src_file_names.dedup();
+        let mut last_name: Option<String> = None;
+        let mut duplicates = Vec::new();
+
+        for file_name in &src_file_names {
+            if let Some(ref last) = last_name {
+                if last == file_name {
+                    duplicates.push(file_name.clone());
+                }
+            }
+            last_name = Some(file_name.clone());
+        }
+        if !duplicates.is_empty() {
+            log(
+                LogLevel::Error,
+                &format!("Duplicate source files found for target: {}", self.name),
+            );
+            log(LogLevel::Error, "Source files must be unique");
+            for duplicate in duplicates {
+                log(LogLevel::Error, &format!("Duplicate file: {}", duplicate));
+            }
+            std::process::exit(1);
+        }
+    }
+
+    /// Rearrange the input targets
+    /// Using topological sorting to respect dependencies.
+    fn arrange_targets(targets: Vec<TargetConfig>) -> Vec<TargetConfig> {
+        // Create a mapping from the target name to the target configuration
+        let mut target_map: HashMap<String, TargetConfig> = targets
+            .into_iter()
+            .map(|target| (target.name.clone(), target))
+            .collect();
+
+        // Build a graph and an in-degree table,and initialize
+        let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
+        for name in target_map.keys() {
+            graph.entry(name.clone()).or_default();
+            in_degree.entry(name.clone()).or_insert(0);
+        }
+
+        // Fill the graph and update the in-degree table
+        for target in target_map.values() {
+            for dep in &target.deps {
+                if let Some(deps) = graph.get_mut(dep) {
+                    deps.push(target.name.clone());
+                    *in_degree.entry(target.name.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Using topological sort
+        let mut queue: VecDeque<String> = VecDeque::new();
+        for (name, &degree) in &in_degree {
+            if degree == 0 {
+                queue.push_back(name.clone());
+            }
+        }
+        let mut sorted_names = Vec::new();
+        while let Some(name) = queue.pop_front() {
+            sorted_names.push(name.clone());
+            if let Some(deps) = graph.get(&name) {
+                for dep in deps {
+                    let degree = in_degree.entry(dep.clone()).or_default();
+                    *degree -= 1;
+                    if *degree == 0 {
+                        queue.push_back(dep.clone());
+                    }
+                }
+            }
+        }
+
+        // Check for rings
+        if sorted_names.len() != target_map.len() {
+            log(LogLevel::Error, "Circular dependency detected");
+            std::process::exit(1);
+        }
+
+        // Rebuild the target list based on the sorted names
+        sorted_names
+            .into_iter()
+            .map(|name| target_map.remove(&name).unwrap())
+            .collect()
     }
 }
 
@@ -501,44 +538,25 @@ fn parse_targets(config: &Table, check_dup_src: bool) -> Vec<TargetConfig> {
     }
 
     // Checks for duplicate target names
-    for i in 0..tgts.len() - 1 {
-        for j in i + 1..tgts.len() {
-            if tgts[i].name == tgts[j].name {
-                log(
-                    LogLevel::Error,
-                    &format!("Duplicate target names found: {}", tgts[i].name),
-                );
-                std::process::exit(1);
-            }
+    let mut names_set = HashSet::new();
+    for target in &tgts {
+        if !names_set.insert(&target.name) {
+            log(
+                LogLevel::Error,
+                &format!("Duplicate target names found: {}", target.name),
+            );
+            std::process::exit(1);
         }
     }
 
     // Checks for duplicate srcs in the target
     if check_dup_src {
+        log(
+            LogLevel::Info,
+            "Checking for duplicate srcs in all targets...",
+        );
         for target in &tgts {
-            let mut src_file_names = target.get_src_names(&target.src);
-            src_file_names.sort();
-            if !src_file_names.is_empty() {
-                for i in 0..src_file_names.len() - 1 {
-                    if src_file_names[i] == src_file_names[i + 1] {
-                        log(
-                            LogLevel::Error,
-                            &format!("Duplicate source files found for target: {}", target.name),
-                        );
-                        log(LogLevel::Error, "Source files must be unique");
-                        log(
-                            LogLevel::Error,
-                            &format!("Duplicate file: {}", src_file_names[i]),
-                        );
-                        std::process::exit(1);
-                    }
-                }
-            } else {
-                log(
-                    LogLevel::Warn,
-                    &format!("No source files found for target: {}", target.name),
-                );
-            }
+            target.check_duplicate_srcs();
         }
     }
 
@@ -566,7 +584,7 @@ fn parse_platform(config: &Table) -> PlatformConfig {
             }
         };
         let smp = parse_cfg_string(platform_table, "smp", "1");
-        let mode = parse_cfg_string(platform_table, "mode", "release");
+        let mode = parse_cfg_string(platform_table, "mode", "");
         let log = parse_cfg_string(platform_table, "log", "warn");
         let v = parse_cfg_string(platform_table, "v", "");
         // determine whether enable qemu

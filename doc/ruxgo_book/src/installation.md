@@ -1,6 +1,6 @@
 # Ruxgo 安装
 
-要从源代码构建`ruxgo`可执行文件，你首先需要安装 Rust 和 Cargo。按照[Rust安装页面](https://www.rust-lang.org/tools/install)上的说明操作。Ruxgo 目前至少需要 Rust 1.70 版本。
+要从源代码构建`ruxgo`可执行文件，你首先需要安装 Rust 和 Cargo。按照[Rust安装页面](https://www.rust-lang.org/tools/install)上的说明操作。Ruxgo 目前至少需要 Rust 1.74 版本。
 
 一旦你安装了 Rust，就可以使用以下命令来构建和安装 Ruxgo:
 

@@ -396,7 +396,10 @@ fn build_os(os_config: &OSConfig, ulib: &str, rux_feats: &[String], lib_feats: &
     }
 
     let target = format!("--target {}", os_config.platform.target);
-    let mode = format!("--{}", os_config.platform.mode);
+    let mut mode = String::new();
+    if !os_config.platform.mode.is_empty() {
+        mode = format!("--{}", os_config.platform.mode);
+    }
     let os_ulib = format!("-p {}", ulib);
     let verbose = match os_config.platform.v.as_str() {
         "1" => "-v",
@@ -1024,16 +1027,13 @@ pub fn init_project(project_name: &str, is_c: Option<bool>, config: &GlobalConfi
 /// Parses the config file of local project
 pub fn parse_config() -> (BuildConfig, OSConfig, Vec<TargetConfig>) {
     #[cfg(target_os = "linux")]
-    let (build_config, os_config, targets) = parser::parse_config("./config_linux.toml", true);
+    let (build_config, os_config, targets) = parser::parse_config("./config_linux.toml", false);
     #[cfg(target_os = "windows")]
     let (build_config, os_config, targets) = utils::parse_config("./config_win32.toml", true);
 
     let mut num_exe = 0;
     let mut exe_target: Option<&TargetConfig> = None;
-    if targets.is_empty() {
-        log(LogLevel::Error, "No targets in config");
-        std::process::exit(1);
-    }
+
     for target in &targets {
         if target.typ == "exe" {
             num_exe += 1;
