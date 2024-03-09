@@ -2,37 +2,19 @@
 
 Ruxgo is a Cargo-like build tool for building C and C++ applications that relies solely on a Toml file. 
 
-**To start using Ruxgo**, learn more at [The Ruxgo Book](https://syswonder.github.io/ruxgo/).
+**To start using Ruxgo**, learn more at [The Ruxgo Book](https://ruxgo.syswonder.org/).
 
 🚧 Working In Progress. 
 
 ## Installation
 
-To build the `ruxgo` executable from source, you will first need to install Rust and Cargo. Follow the instructions on the [Rust installation page](https://www.rust-lang.org/tools/install). Ruxgo currently requires at least Rust version 1.70.
+To build the `ruxgo` executable from source, you will first need to install Rust and Cargo. Follow the instructions on the [Rust installation page](https://www.rust-lang.org/tools/install). Ruxgo currently requires at least Rust version 1.74.
 
 Once you have installed Rust, the following command can be used to build and install Ruxgo:
 
 ```sh
 cargo install --git https://github.com/syswonder/ruxgo.git ruxgo
 ```
-
-This will automatically download Ruxgo, build it, and install it in Cargo's global binary directory (`~/.cargo/bin/` by default).
-
-To uninstall, run the command `cargo uninstall ruxgo`.
-
-**Note:**
-
-If you have problems with the installation, you may need to install some build dependencies, refer to [README.md](https://github.com/syswonder/ruxos?tab=readme-ov-file#install-build-dependencies) under RuxOS.
-
-## Features & TODOs
-
-* [x] Multithreaded and incremental builds
-* [x] Supports static libs and dynamic libs
-* [x] Support for building on RuxOS
-* [x] Supported ruxlibc and ruxmusl
-* [x] Can generate compile_commands.json
-* [x] Package management
-* [ ] Automatically parses Makefiles
 
 ## Usage
 
@@ -73,4 +55,4 @@ The `ruxgo/apps/` directory places all the Toml files that have been tested, you
 * [x] httpclient
 * [x] httpserver
 * [x] nginx
-* [ ] python3
+* [x] python3

@@ -4,10 +4,11 @@ version = "0.9.0"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"
+license = "Apache-2.0"
 homepage = "https://github.com/syswonder/ruxgo"
 repository = "https://github.com/syswonder/ruxgo"
-documentation = "https://syswonder.github.io/ruxgo/"
-keywords = ["toml", "build-tool", "c++", "c", "rust"]
+documentation = "https://ruxgo.syswonder.org/"
+keywords = ["toml", "build-tool", "rust", "c++", "c"]
 
 [dependencies]
 toml = "0.7.2"
