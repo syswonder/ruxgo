@@ -1,6 +1,6 @@
 [package]
 name = "ruxgo"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2021"
 authors = ["Zewei Yang <beichen@stu.pku.edu.cn>"]
 description = "A Cargo-like build tool for building C and C++ applications"
@@ -8,7 +8,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/syswonder/ruxgo"
 repository = "https://github.com/syswonder/ruxgo"
 documentation = "https://ruxgo.syswonder.org/"
-keywords = ["toml", "build-tool", "rust", "c++", "c"]
+keywords = ["build-tool", "apps", "c++", "c", "toml"]
 
 [dependencies]
 toml = "0.7.2"
@@ -17,7 +17,7 @@ itertools="0.10.5"
 sha1 = "0.10.6"
 rayon = "1.7.0"
 indicatif = "0.17.3"
-clap = { version = "4.4.11", features = ["derive"] }
+clap = { version = "4.5.2", features = ["derive"] }
 directories = "5.0.1"
 serde = { version = "1.0.190", features = ["derive"] }
 serde_json = "1.0"

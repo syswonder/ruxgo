@@ -13,6 +13,12 @@ To build the `ruxgo` executable from source, you will first need to install Rust
 Once you have installed Rust, the following command can be used to build and install Ruxgo:
 
 ```sh
+cargo install ruxgo
+```
+
+The version published to [crates.io](https://crates.io/) will ever so slightly be behind the version hosted on GitHub. If you need the latest version you can build the git version of ruxgo yourself.
+
+```sh
 cargo install --git https://github.com/syswonder/ruxgo.git ruxgo
 ```
 
