@@ -37,6 +37,8 @@ jobs:
         git worktree add gh-pages
         git config user.name "Deploy from CI"
         git config user.email ""
+        # be sure to copy the CNAME file
+        cp CNAME book/CNAME
         cd gh-pages
         # Delete the ref to avoid keeping history.
         git update-ref -d refs/heads/gh-pages

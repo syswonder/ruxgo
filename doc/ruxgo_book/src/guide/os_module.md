@@ -24,7 +24,7 @@ Ruxgo 这么做是为了，如果你能在本地跑通一个程序，那么只�
 
 - `smp`: 指定cpu数量。默认值为 "1"。
 
-- `mode`: 指定构建模式，可选项有: "release"，"debug"。默认值为 "release"。
+- `mode`: 指定构建模式，可选项有: "release"，当不指定 mode 模式时默认为 "debug"。
 
 - `log`: 指定日志级别，可选项有: "warn"，"error"，"info"，"debug" 和 "trace"。默认值为 "warn"。
 

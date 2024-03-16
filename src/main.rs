@@ -134,7 +134,9 @@ license = "NONE"
                 }
                 if !c && !cpp {
                     commands::init_project(&name, None, &global_config);
+                    std::process::exit(0);
                 }
+
                 if c {
                     commands::init_project(&name, Some(true), &global_config);
                 } else {
