@@ -311,45 +311,41 @@ pub fn build(
             });
     }
 
+    log(
+        LogLevel::Log,
+        &format!(
+            "Compiling OS: {}, Ulib: {}",
+            os_config.name, os_config.ulib
+        ),
+    );
+    let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
+    build_os(
+        os_config,
+        &os_config.ulib,
+        &rux_feats_final,
+        &lib_feats_final,
+    );
+    if os_config.ulib == "ruxlibc" {
+        build_ruxlibc(build_config, os_config, gen_cc);
+    } else if os_config.ulib == "ruxmusl" {
+        build_ruxmusl(build_config, os_config);
+    }
+
     let mut config_changed = false;
 
-    // Checks and constructs os and ulib based on the os_config changes.
+    // Relinks if the os_config changes.
     if os_config != &OSConfig::default() {
         let os_config_str = serde_json::to_string(os_config).unwrap_or_else(|_| "".to_string());
         let current_hash = Hasher::hash_string(&os_config_str);
         let old_hash = Hasher::read_hash_from_file(OSCONFIG_HASH_FILE);
         if old_hash != current_hash {
-            log(
-                LogLevel::Log,
-                "OS config changed, all targets need to be relinked",
-            );
-            log(
-                LogLevel::Log,
-                &format!(
-                    "Compiling OS: {}, Ulib: {} ",
-                    os_config.name, os_config.ulib
-                ),
-            );
+            log(LogLevel::Log, "OS config changes, all need to be relinked");
             config_changed = true;
-            let (rux_feats_final, lib_feats_final) = features::cfg_feat_addprefix(os_config);
-            build_os(
-                os_config,
-                &os_config.ulib,
-                &rux_feats_final,
-                &lib_feats_final,
-            );
-            if os_config.ulib == "ruxlibc" {
-                build_ruxlibc(build_config, os_config, gen_cc);
-            } else if os_config.ulib == "ruxmusl" {
-                build_ruxmusl(build_config, os_config);
-            }
             Hasher::save_hash_to_file(OSCONFIG_HASH_FILE, &current_hash);
-        } else {
-            log(LogLevel::Log, "OS config is up to date");
         }
     };
 
-    // Constructs each target separately based on the os_config changes.
+    // Constructs each target separately
     for target in targets {
         let mut tgt = Target::new(build_config, os_config, target, targets);
 
